@@ -52,7 +52,7 @@ export const load: PageServerLoad = async () => {
     const taskDueAt = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
     
     // Task is due today or overdue, AND is NOT scheduled for today
-    const isDueOrOverdue = taskDueAt && !isBefore(tomorrow, taskDueAt); // dueAt is today or before
+    const isDueOrOverdue = taskDueAt && isBefore(taskDueAt, tomorrow); // dueAt is today or before
     const notScheduledForToday = !taskBoardDate || !isEqual(taskBoardDate, today);
     
     return isDueOrOverdue && notScheduledForToday;
