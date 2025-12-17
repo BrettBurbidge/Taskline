@@ -34,9 +34,14 @@ docker-compose up --build
 This command will:
 - Build the Papa application Docker image
 - Start PostgreSQL database
-- Run database migrations
-- Seed the database with initial data
+- Run database migrations automatically
 - Start the application on http://localhost:3000
+
+**Note:** To seed the database with initial data (default user and project), run:
+```bash
+docker compose exec app npx prisma db seed
+```
+This only needs to be run once on first setup.
 
 ### 3. Access the application
 
