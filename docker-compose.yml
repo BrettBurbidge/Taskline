@@ -31,6 +31,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NODE_ENV: production
       ORIGIN: http://localhost:3000
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Denver}
+      TZ: ${TZ:-America/Denver}
     depends_on:
       postgres:
         condition: service_healthy

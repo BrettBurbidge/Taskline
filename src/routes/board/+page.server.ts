@@ -1,9 +1,14 @@
 import { db } from "$lib/db";
-import { format, startOfDay, addDays, isEqual, isBefore } from "date-fns";
+import { format, addDays, isEqual, isBefore } from "date-fns";
+import { getStartOfDayUTC, getTodayString } from "$lib/utils/timezone";
 import type { PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async () => {
-  const today = startOfDay(new Date());
+export const load: PageServerLoad = async ({ cookies }) => {
+  // Get user's timezone from cookie (set by client) or use default
+  const userTimezone = cookies.get("user_timezone") || process.env.DEFAULT_TIMEZONE || "America/Denver";
+  
+  // Calculate today in user's timezone (as UTC Date representing start of day in user TZ)
+  const today = getStartOfDayUTC(new Date(), userTimezone);
   const tomorrow = addDays(today, 1);
 
   // Fetch tasks for today:
@@ -42,16 +47,16 @@ export const load: PageServerLoad = async () => {
   // Separate overdue/due tasks from scheduled tasks
   const scheduledTasks = tasks.filter((task) => {
     if (!task.boardDate) return false;
-    const taskBoardDate = startOfDay(new Date(task.boardDate));
+    const taskBoardDate = getStartOfDayUTC(new Date(task.boardDate), userTimezone);
     // Task is scheduled specifically for today
     return isEqual(taskBoardDate, today);
   });
 
   const dueTasks = tasks.filter((task) => {
     const taskBoardDate = task.boardDate
-      ? startOfDay(new Date(task.boardDate))
+      ? getStartOfDayUTC(new Date(task.boardDate), userTimezone)
       : null;
-    const taskDueAt = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
+    const taskDueAt = task.dueAt ? getStartOfDayUTC(new Date(task.dueAt), userTimezone) : null;
 
     // Task is due today or overdue, AND is NOT scheduled for today
     const isDueOrOverdue = taskDueAt && isBefore(taskDueAt, tomorrow); // dueAt is today or before
@@ -86,6 +91,6 @@ export const load: PageServerLoad = async () => {
     scheduledTasks,
     dueTasks,
     followUps,
-    todayDate: format(today, "yyyy-MM-dd"),
+    todayDate: getTodayString(userTimezone),
   };
 };
