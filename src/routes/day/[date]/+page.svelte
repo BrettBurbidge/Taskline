@@ -343,9 +343,12 @@
             <div class="divide-y divide-gray-200">
               {#each data.followUps as followUp}
                 <div class="p-4">
-                  <div class="text-sm font-medium text-gray-900 mb-1">
+                  <a
+                    href="/tasks/{followUp.taskId}"
+                    class="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline mb-1 block"
+                  >
                     {followUp.task.title}
-                  </div>
+                  </a>
                   <div class="text-xs text-gray-600 mb-2">
                     {formatFollowUpType(followUp.followUpType)}
                     {#if followUp.targetPerson}
