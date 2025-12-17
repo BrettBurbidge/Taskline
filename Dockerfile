@@ -25,10 +25,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install production dependencies only
+# Install dependencies (including dev dependencies needed for Prisma CLI and tsx)
 COPY package*.json ./
 COPY prisma ./prisma/
-RUN npm ci --omit=dev
+RUN npm ci
 
 # Copy built app from builder
 COPY --from=builder /app/build ./build
@@ -38,6 +38,7 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY svelte.config.js ./
 COPY vite.config.ts ./
 COPY tsconfig.json ./
+COPY prisma.config.ts ./
 
 # Expose port
 EXPOSE 3000
