@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
-	import { parseMentions } from '$lib/utils/mentions';
+	import { parseMentions, parseProjects } from '$lib/utils/mentions';
 	import { parseDate, formatParsedDate, formatParsedDateForInput } from '$lib/utils/dateParser';
 
 	let { data }: { data: PageData } = $props();
@@ -50,6 +50,15 @@
 		return parseMentions(fullText);
 	});
 
+	// Auto-parse projects using derived state
+	let parsedProjects = $derived.by(() => {
+		const fullText = `${title} ${description}`;
+		if (!fullText.trim()) {
+			return { projects: [] };
+		}
+		return parseProjects(fullText);
+	});
+
 	let newPeople = $derived.by(() => {
 		if (!data?.people) return [];
 		const existingHandles = data.people.map((p) => p.handle.toLowerCase());
@@ -60,10 +69,20 @@
 		return allMentionedHandles.filter((handle) => !existingHandles.includes(handle));
 	});
 
+	let newProjects = $derived.by(() => {
+		if (!data?.projects) return [];
+		const existingProjectNames = new Set(data.projects.map((p) => p.name.toLowerCase()));
+		return parsedProjects.projects.filter((name) => !existingProjectNames.has(name.toLowerCase()));
+	});
+
 	let showMentionSuggestions = $derived(
 		newPeople.length > 0 || 
 		parsedMentions.stakeholders.length > 0 || 
 		parsedMentions.executor !== null
+	);
+
+	let showProjectSuggestions = $derived(
+		parsedProjects.projects.length > 0
 	);
 
 	// Auto-parse dates using derived state
@@ -108,6 +127,51 @@
 					}
 				} catch (err) {
 					console.warn(`Failed to create person @${handle}:`, err);
+				}
+			}
+
+			// Step 1.5: Create or find projects mentioned
+			// If # tag is present, it takes precedence over manual selection
+			let finalProjectId = projectId || null;
+			
+			if (parsedProjects.projects.length > 0) {
+				// Use the first project mentioned (if multiple, take the first one)
+				const projectName = parsedProjects.projects[0];
+				
+				// Check if it's an existing project (case-insensitive comparison)
+				const existingProject = data.projects.find(
+					(p) => p.name.toLowerCase() === projectName.toLowerCase()
+				);
+				
+				if (existingProject) {
+					// Found existing project - use it
+					finalProjectId = existingProject.id;
+				} else {
+					// Create new project
+					// If project name contains spaces or special characters, it was quoted - preserve exact casing
+					// Otherwise, normalize unquoted projects to "Capitalized" format
+					const hasSpacesOrSpecialChars = /\s|[^a-zA-Z0-9_]/.test(projectName);
+					const nameToCreate = hasSpacesOrSpecialChars
+						? projectName  // Preserve exact casing for quoted projects
+						: projectName.charAt(0).toUpperCase() + projectName.slice(1).toLowerCase(); // Normalize unquoted
+					
+					try {
+						const response = await fetch('/api/projects', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({
+								name: nameToCreate,
+								description: null
+							})
+						});
+						
+						if (response.ok) {
+							const project = await response.json();
+							finalProjectId = project.id;
+						}
+					} catch (err) {
+						console.warn(`Failed to create project #${projectName}:`, err);
+					}
 				}
 			}
 
@@ -158,7 +222,7 @@
 					title: title.trim(),
 					description: description.trim() || null,
 					dueAt: finalDueAt || null,
-					projectId: projectId || null,
+					projectId: finalProjectId,
 					accountablePersonId: data.currentUser!.id,
 					executorPersonId: finalExecutorId,
 					stakeholderPersonIds: stakeholderIds.length > 0 ? stakeholderIds : selectedStakeholders,
@@ -359,6 +423,34 @@
 					</div>
 				{/if}
 
+				<!-- Parsed Projects Preview -->
+				{#if showProjectSuggestions}
+					<div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+						<div class="text-sm font-medium text-green-900 mb-2">
+							📁 Auto-detected project:
+						</div>
+						<div class="space-y-2">
+							{#each parsedProjects.projects as project}
+								<div class="text-sm text-green-800">
+									<span class="font-medium">Project:</span>
+									<span class="ml-2 px-2 py-0.5 bg-green-100 rounded">
+										#{project}
+									</span>
+									{#if newProjects.includes(project)}
+										<span class="ml-2 text-xs text-green-600">(will be created)</span>
+									{/if}
+								</div>
+							{/each}
+							{#if newProjects.length > 0}
+								<div class="text-xs text-green-700 mt-2">
+									💡 New projects will be created automatically. You can manage them in
+									<a href="/projects" class="underline">Projects</a>.
+								</div>
+							{/if}
+						</div>
+					</div>
+				{/if}
+
 				<!-- Toggle Details and AI Assist -->
 				<div class="flex items-center gap-4">
 					<button
@@ -493,8 +585,10 @@
 				<li>• Press Enter to quickly create a task with just the title</li>
 				<li>• Use <code class="bg-blue-100 px-1 rounded">@name</code> to mention stakeholders</li>
 				<li>• Use <code class="bg-blue-100 px-1 rounded">→ @name</code> or <code class="bg-blue-100 px-1 rounded">assign to @name</code> to set executor</li>
+				<li>• Use <code class="bg-blue-100 px-1 rounded">#ProjectName</code> to assign to a project</li>
+				<li>• Use <code class="bg-blue-100 px-1 rounded">#"Project Name"</code> for projects with spaces or special characters like <code class="bg-blue-100 px-1 rounded">/</code></li>
 				<li>• Type dates like <code class="bg-blue-100 px-1 rounded">Thursday</code>, <code class="bg-blue-100 px-1 rounded">next Monday</code>, or <code class="bg-blue-100 px-1 rounded">tomorrow</code> to auto-detect due dates</li>
-				<li>• New people are auto-created from @mentions</li>
+				<li>• New people and projects are auto-created from @mentions and #tags</li>
 			</ul>
 		</div>
 	</div>

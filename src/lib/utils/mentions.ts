@@ -1,10 +1,15 @@
 /**
  * Utilities for parsing @mentions and extracting people from text
+ * Also includes utilities for parsing #project tags
  */
 
 export interface ParsedMentions {
   stakeholders: string[]; // @mention handles
   executor: string | null; // → @handle or > @handle
+}
+
+export interface ParsedProjects {
+  projects: string[]; // #project names
 }
 
 /**
@@ -154,5 +159,123 @@ export function highlightExecutor(text: string): string {
     /([→>]\s*@\w+)/g,
     '<span class="text-purple-600 font-medium">$1</span>'
   );
+}
+
+/**
+ * Parse text to extract project tags (#project)
+ * 
+ * Examples:
+ * - "follow up with @steen tomorrow #Website" → projects: ['Website']
+ * - "Fix bug #Frontend #Urgent" → projects: ['Frontend', 'Urgent']
+ * - 'Use #"Project Name" for spaces' → projects: ['Project Name']
+ * - 'Use #"Project/Path" for special chars' → projects: ['Project/Path']
+ * 
+ * Note: 
+ * - Unquoted tags (#project) only match word characters (no spaces or special chars)
+ * - Quoted tags (#"project name") support spaces and special characters like /
+ * - Preserves exact casing from user input, but comparisons should be case-insensitive
+ */
+export function parseProjects(text: string): ParsedProjects {
+  if (!text) {
+    return { projects: [] };
+  }
+
+  const projects: string[] = [];
+  const processedRanges: Array<[number, number]> = [];
+  
+  // Pattern 1: Quoted project names: #"Project Name" or #'Project Name'
+  // Supports spaces and special characters like /, -, etc.
+  const quotedRegex = /#(["'])([^"']+)\1/g;
+  let match;
+  while ((match = quotedRegex.exec(text)) !== null) {
+    const projectName = match[2].trim();
+    if (projectName) {
+      projects.push(projectName);
+      processedRanges.push([match.index, match.index + match[0].length]);
+    }
+  }
+  
+  // Pattern 2: Unquoted project names: #Project
+  // Only matches word characters (alphanumeric + underscore), no spaces
+  // Stops at whitespace, #, @, or end of string
+  const unquotedRegex = /#(\w+)/g;
+  while ((match = unquotedRegex.exec(text)) !== null) {
+    // Check if this range was already processed by quoted regex
+    const matchStart = match.index;
+    const isAlreadyProcessed = processedRanges.some(
+      ([start, end]) => matchStart >= start && matchStart < end
+    );
+    
+    if (!isAlreadyProcessed) {
+      const projectName = match[1];
+      if (projectName) {
+        projects.push(projectName);
+      }
+    }
+  }
+
+  // Remove duplicates (case-insensitive)
+  const seen = new Set<string>();
+  const uniqueProjects: string[] = [];
+  for (const project of projects) {
+    const lower = project.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      uniqueProjects.push(project);
+    }
+  }
+
+  return {
+    projects: uniqueProjects,
+  };
+}
+
+/**
+ * Extract all unique #project tags from text (for autocomplete)
+ */
+export function extractProjects(text: string): string[] {
+  if (!text) return [];
+  
+  const parsed = parseProjects(text);
+  return parsed.projects;
+}
+
+/**
+ * Highlight #project tags in text (for display)
+ */
+export function highlightProjects(text: string): string {
+  const processedRanges: Array<[number, number]> = [];
+  let highlighted = text;
+  
+  // First handle quoted projects
+  const quotedRegex = /#(["'])([^"']+)\1/g;
+  let match;
+  while ((match = quotedRegex.exec(text)) !== null) {
+    const fullMatch = match[0];
+    highlighted = highlighted.replace(
+      fullMatch,
+      `<span class="text-green-600 font-medium">${fullMatch}</span>`
+    );
+    processedRanges.push([match.index, match.index + fullMatch.length]);
+  }
+  
+  // Then handle unquoted projects (but skip if already highlighted/quoted)
+  const unquotedRegex = /#(\w+)/g;
+  while ((match = unquotedRegex.exec(text)) !== null) {
+    const matchStart = match.index;
+    const isAlreadyProcessed = processedRanges.some(
+      ([start, end]) => matchStart >= start && matchStart < end
+    );
+    
+    if (!isAlreadyProcessed) {
+      const fullMatch = match[0];
+      highlighted = highlighted.replace(
+        fullMatch,
+        `<span class="text-green-600 font-medium">${fullMatch}</span>`
+      );
+    }
+  }
+  
+  return highlighted;
 }
 
