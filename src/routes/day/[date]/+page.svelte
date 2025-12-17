@@ -6,6 +6,19 @@
 
   let { data }: { data: PageData } = $props();
 
+  async function reorderTask(taskId: string, direction: "up" | "down", targetDate?: string) {
+    try {
+      await fetch(`/api/tasks/${taskId}/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction, targetDate }),
+      });
+      await invalidateAll();
+    } catch (err) {
+      console.error("Failed to reorder task:", err);
+    }
+  }
+
   async function completeTask(taskId: string) {
     try {
       await fetch(`/api/tasks/${taskId}/complete`, {
@@ -161,9 +174,30 @@
             </div>
 
             <div class="divide-y divide-orange-100">
-              {#each data.dueTasks as task}
+              {#each data.dueTasks as task, index}
                 <div class="p-4 hover:bg-orange-100 transition-colors">
                   <div class="flex items-start gap-4">
+                    <!-- Reorder Controls -->
+                    <div class="flex flex-col gap-1 pt-1">
+                      <button
+                        onclick={() => reorderTask(task.id, "up", data.targetDate)}
+                        disabled={index === 0}
+                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onclick={() => reorderTask(task.id, "down", data.targetDate)}
+                        disabled={index === data.dueTasks.length - 1}
+                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move down"
+                      >
+                        ↓
+                      </button>
+                    </div>
+
+                    <!-- Task Content -->
                     <div class="flex-1 min-w-0">
                       <div class="flex items-start justify-between gap-4">
                         <div class="flex-1">
@@ -253,9 +287,30 @@
             </div>
           {:else}
             <div class="divide-y divide-gray-200">
-              {#each data.scheduledTasks as task}
+              {#each data.scheduledTasks as task, index}
                 <div class="p-4 hover:bg-gray-50 transition-colors">
                   <div class="flex items-start gap-4">
+                    <!-- Reorder Controls -->
+                    <div class="flex flex-col gap-1 pt-1">
+                      <button
+                        onclick={() => reorderTask(task.id, "up", data.targetDate)}
+                        disabled={index === 0}
+                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onclick={() => reorderTask(task.id, "down", data.targetDate)}
+                        disabled={index === data.scheduledTasks.length - 1}
+                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move down"
+                      >
+                        ↓
+                      </button>
+                    </div>
+
+                    <!-- Task Content -->
                     <div class="flex-1 min-w-0">
                       <div class="flex items-start justify-between gap-4">
                         <div class="flex-1">

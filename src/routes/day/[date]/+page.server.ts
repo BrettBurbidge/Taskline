@@ -45,30 +45,60 @@ export const load: PageServerLoad = async ({ params }) => {
         },
       },
     },
-    orderBy: [{ dueAt: "asc" }, { sortOrder: "asc" }, { createdAt: "desc" }],
+    orderBy: [{ sortOrder: "asc" }, { dueAt: "asc" }, { createdAt: "desc" }],
   });
 
   // Separate tasks scheduled for this day from tasks only due on this day
-  const scheduledTasks = tasks.filter((task) => {
-    if (!task.boardDate) return false;
-    const taskBoardDate = startOfDay(new Date(task.boardDate));
-    return taskBoardDate.getTime() === targetDate.getTime();
-  });
+  const scheduledTasks = tasks
+    .filter((task) => {
+      if (!task.boardDate) return false;
+      const taskBoardDate = startOfDay(new Date(task.boardDate));
+      return taskBoardDate.getTime() === targetDate.getTime();
+    })
+    .sort((a, b) => {
+      // Sort by sortOrder first (nulls last), then by dueAt, then by createdAt
+      const aOrder = a.sortOrder ?? 999999;
+      const bOrder = b.sortOrder ?? 999999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      
+      if (a.dueAt && b.dueAt) {
+        return a.dueAt.getTime() - b.dueAt.getTime();
+      }
+      if (a.dueAt) return -1;
+      if (b.dueAt) return 1;
+      
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
 
-  const dueTasks = tasks.filter((task) => {
-    const taskBoardDate = task.boardDate
-      ? startOfDay(new Date(task.boardDate))
-      : null;
-    const taskDueAt = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
+  const dueTasks = tasks
+    .filter((task) => {
+      const taskBoardDate = task.boardDate
+        ? startOfDay(new Date(task.boardDate))
+        : null;
+      const taskDueAt = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
 
-    // Task is due on this day, AND is NOT scheduled for this day
-    const isDueThisDay =
-      taskDueAt && taskDueAt.getTime() === targetDate.getTime();
-    const notScheduledForThisDay =
-      !taskBoardDate || taskBoardDate.getTime() !== targetDate.getTime();
+      // Task is due on this day, AND is NOT scheduled for this day
+      const isDueThisDay =
+        taskDueAt && taskDueAt.getTime() === targetDate.getTime();
+      const notScheduledForThisDay =
+        !taskBoardDate || taskBoardDate.getTime() !== targetDate.getTime();
 
-    return isDueThisDay && notScheduledForThisDay;
-  });
+      return isDueThisDay && notScheduledForThisDay;
+    })
+    .sort((a, b) => {
+      // Sort by sortOrder first (nulls last), then by dueAt, then by createdAt
+      const aOrder = a.sortOrder ?? 999999;
+      const bOrder = b.sortOrder ?? 999999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      
+      if (a.dueAt && b.dueAt) {
+        return a.dueAt.getTime() - b.dueAt.getTime();
+      }
+      if (a.dueAt) return -1;
+      if (b.dueAt) return 1;
+      
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    });
 
   // Fetch follow-ups due on this day
   const followUps = await db.followUp.findMany({

@@ -13,12 +13,12 @@
   let showFollowUpInfoModal = $state(false);
   let followUpInfoMessage = $state("");
 
-  async function reorderTask(taskId: string, direction: "up" | "down") {
+  async function reorderTask(taskId: string, direction: "up" | "down", targetDate?: string) {
     try {
       await fetch(`/api/tasks/${taskId}/reorder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ direction }),
+        body: JSON.stringify({ direction, targetDate }),
       });
       await invalidateAll();
     } catch (err) {
@@ -201,6 +201,26 @@
               {#each data.dueTasks as task, index}
                 <div class="p-4 hover:bg-red-100 transition-colors">
                   <div class="flex items-start gap-4">
+                    <!-- Reorder Controls -->
+                    <div class="flex flex-col gap-1 pt-1">
+                      <button
+                        onclick={() => reorderTask(task.id, "up", data.todayDate)}
+                        disabled={index === 0}
+                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onclick={() => reorderTask(task.id, "down", data.todayDate)}
+                        disabled={index === data.dueTasks.length - 1}
+                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move down"
+                      >
+                        ↓
+                      </button>
+                    </div>
+
                     <!-- Task Content -->
                     <div class="flex-1 min-w-0">
                       <div class="flex items-start justify-between gap-4">
@@ -303,7 +323,7 @@
                     <!-- Reorder Controls -->
                     <div class="flex flex-col gap-1 pt-1">
                       <button
-                        onclick={() => reorderTask(task.id, "up")}
+                        onclick={() => reorderTask(task.id, "up", data.todayDate)}
                         disabled={index === 0}
                         class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Move up"
@@ -311,7 +331,7 @@
                         ↑
                       </button>
                       <button
-                        onclick={() => reorderTask(task.id, "down")}
+                        onclick={() => reorderTask(task.id, "down", data.todayDate)}
                         disabled={index === data.scheduledTasks.length - 1}
                         class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Move down"

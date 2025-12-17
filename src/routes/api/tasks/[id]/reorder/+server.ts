@@ -4,21 +4,45 @@ import type { RequestHandler } from './$types';
 
 // POST /api/tasks/:id/reorder - move task up or down
 export const POST: RequestHandler = async ({ params, request }) => {
-  const { direction } = await request.json();
+  const { direction, targetDate } = await request.json();
 
   const task = await db.task.findUnique({
     where: { id: params.id },
-    select: { id: true, boardDate: true, sortOrder: true },
+    select: { id: true, boardDate: true, dueAt: true, sortOrder: true },
   });
 
-  if (!task || !task.boardDate) {
-    throw error(404, 'Task not found or has no board date');
+  if (!task) {
+    throw error(404, 'Task not found');
+  }
+
+  // Determine the date to use for reordering
+  // If task has boardDate, use it. Otherwise, use dueAt or targetDate
+  let targetBoardDate: Date | null = task.boardDate;
+  
+  if (!targetBoardDate) {
+    if (targetDate) {
+      // Parse targetDate (YYYY-MM-DD format)
+      const [year, month, day] = targetDate.split('-').map(Number);
+      targetBoardDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+    } else if (task.dueAt) {
+      // Use dueAt date (at noon to match boardDate format)
+      const dueDate = new Date(task.dueAt);
+      targetBoardDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate(), 12, 0, 0, 0);
+    } else {
+      throw error(400, 'Task has no board date, due date, or target date');
+    }
+    
+    // Set boardDate for this task if it doesn't have one
+    await db.task.update({
+      where: { id: task.id },
+      data: { boardDate: targetBoardDate },
+    });
   }
 
   // Get all tasks on the same board date
   const tasksOnDate = await db.task.findMany({
     where: {
-      boardDate: task.boardDate,
+      boardDate: targetBoardDate,
       status: { in: ['not_started', 'in_progress', 'waiting'] },
     },
     orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
