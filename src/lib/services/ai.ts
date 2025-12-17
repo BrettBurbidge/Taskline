@@ -177,3 +177,370 @@ export function isAIAvailable(): boolean {
   return openai !== null;
 }
 
+// Schema for extracted tasks from audio
+const ExtractedTaskSchema = z.object({
+  title: z.string(),
+  description: z.string().nullable(),
+  dueDate: z.string().nullable(), // ISO date string
+  executor: z.string().nullable(), // @handle format
+  stakeholders: z.array(z.string()).default([]), // @handle format
+  project: z.string().nullable(), // #project format or project name
+});
+
+const AudioTranscriptionSchema = z.object({
+  transcription: z.string(),
+  tasks: z.array(ExtractedTaskSchema),
+  newPeople: z.array(z.object({
+    handle: z.string(),
+    displayName: z.string(),
+  })).optional(),
+});
+
+export type ExtractedTask = z.infer<typeof ExtractedTaskSchema>;
+export type AudioTranscriptionResult = z.infer<typeof AudioTranscriptionSchema>;
+
+interface TranscribeAudioOptions {
+  audioFile: File;
+  currentDate: Date;
+  knownPeople?: Array<{ handle: string; displayName: string }>;
+  knownProjects?: Array<{ id: string; name: string }>;
+}
+
+/**
+ * Transcribe audio and extract multiple tasks from it
+ */
+export async function transcribeAudioAndExtractTasks(
+  options: TranscribeAudioOptions
+): Promise<AudioTranscriptionResult | null> {
+  if (!openai) {
+    console.warn('OpenAI API key not configured. Audio transcription disabled.');
+    return null;
+  }
+
+  const { audioFile, currentDate, knownPeople = [], knownProjects = [] } = options;
+
+  try {
+    // Step 1: Transcribe audio using Whisper API
+    // OpenAI Whisper API expects a File object
+    const transcriptionResponse = await openai.audio.transcriptions.create({
+      file: audioFile,
+      model: 'whisper-1',
+      language: 'en',
+    });
+
+    const transcription = transcriptionResponse.text;
+    if (!transcription || transcription.trim().length === 0) {
+      return null;
+    }
+
+    // Step 2: Extract tasks from transcription using GPT
+    // Build a comprehensive list of people with name variations
+    const peopleList = knownPeople.map((p) => {
+      const variations = [
+        p.displayName,
+        p.handle,
+        p.displayName.toLowerCase(),
+        p.handle.toLowerCase(),
+        // Add first name only
+        p.displayName.split(' ')[0],
+        // Add last name only if exists
+        p.displayName.split(' ').length > 1 ? p.displayName.split(' ').slice(1).join(' ') : null,
+      ].filter(Boolean);
+      return `@${p.handle} (${p.displayName}) - also known as: ${variations.join(', ')}`;
+    }).join('\n');
+
+    const systemPrompt = `You are an AI assistant that extracts multiple tasks from transcribed audio.
+
+Today's date is ${currentDate.toISOString().split('T')[0]}.
+
+Known people (match ANY variation of their name):
+${peopleList || 'None'}
+
+Known projects: ${knownProjects.map((p) => p.name).join(', ') || 'None'}
+
+The user has recorded audio that contains one or more tasks. Extract ALL tasks mentioned in the transcription.
+
+CRITICAL: Be VERY aggressive about finding people's names in the transcription:
+- Look for ANY mention of a person's name (first name, last name, full name, or handle)
+- Match names even if they're not explicitly tagged with @
+- If someone is mentioned in relation to a task, they should be tagged as a stakeholder
+- If someone is assigned/delegated to do something, tag them as executor
+- Use the @handle format matching the known people list above
+- If a name sounds similar to a known person, match it (e.g., "John" matches "@john", "Sarah Smith" matches "@sarah" if Sarah's display name is "Sarah Smith")
+
+For each task, extract:
+- A clear, actionable task title (keep it simple and concise)
+- Additional description/context (if any)
+- Due date (if mentioned, in YYYY-MM-DD format)
+- Executor (if delegated/assigned, use @handle format matching known people - be aggressive about finding this)
+- Stakeholders (ALL people mentioned in relation to this task, use @handle format - include anyone whose name appears)
+- Project (if mentioned, use #projectname format or match existing project names)
+
+IMPORTANT:
+- Extract ALL tasks mentioned, even if there are multiple
+- Keep task titles simple and actionable
+- Use @mentions for people (e.g., @john, @sarah)
+- Use #projectname for projects (e.g., #Website, #"Project Name" for spaces)
+- Match people and projects to known ones when possible
+- If a person/project doesn't exist, still include it - it will be auto-created
+- When in doubt about whether someone should be tagged, include them as a stakeholder
+
+Return your response as JSON matching this schema:
+{
+  "transcription": "the full transcription text",
+  "tasks": [
+    {
+      "title": "string",
+      "description": "string | null",
+      "dueDate": "YYYY-MM-DD | null",
+      "executor": "@handle | null",
+      "stakeholders": ["@handle"],
+      "project": "#projectname | project name | null"
+    }
+  ]
+}`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Transcription: ${transcription}` },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      return null;
+    }
+
+    const parsed = JSON.parse(content);
+    const result = AudioTranscriptionSchema.parse(parsed);
+    
+    // Step 3: Post-process to find additional people mentioned in transcription
+    // This catches names that the AI might have missed and tags them appropriately
+    // Also detects new people not in the system
+    
+    // First, extract potential names from transcription that aren't in known people
+    const transcriptionLower = transcription.toLowerCase();
+    const knownNamesSet = new Set<string>();
+    knownPeople.forEach(p => {
+      knownNamesSet.add(p.displayName.toLowerCase());
+      knownNamesSet.add(p.handle.toLowerCase());
+      knownNamesSet.add(p.displayName.split(' ')[0].toLowerCase());
+    });
+    
+    // Extract potential person names (capitalized words that could be names)
+    // Look for patterns like "John", "John Smith", "with John", "tell John", etc.
+    const potentialNames = new Set<string>();
+    
+    // Pattern 1: Capitalized words that appear after common verbs/prepositions
+    const nameContextPattern = /\b(?:tell|ask|email|call|meet|with|from|to|about|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
+    let match;
+    while ((match = nameContextPattern.exec(transcription)) !== null) {
+      const potentialName = match[1];
+      const nameLower = potentialName.toLowerCase();
+      
+      // Skip if it's a known name or common words
+      const commonWords = ['the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'will', 'should', 'today', 'tomorrow', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+      
+      if (!knownNamesSet.has(nameLower) && 
+          !commonWords.includes(nameLower) && 
+          potentialName.length >= 2 &&
+          potentialName.split(' ').every(word => word.length >= 2)) {
+        potentialNames.add(potentialName);
+      }
+    }
+    
+    // Pattern 2: Standalone capitalized words (first word of sentence or after punctuation)
+    const standaloneNamePattern = /(?:^|\.\s+|,\s+|\?\s+|\!\s+)([A-Z][a-z]+)\b/g;
+    while ((match = standaloneNamePattern.exec(transcription)) !== null) {
+      const potentialName = match[1];
+      const nameLower = potentialName.toLowerCase();
+      
+      const commonWords = ['the', 'and', 'for', 'with', 'this', 'that', 'from', 'have', 'will', 'should', 'today', 'tomorrow', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'follow', 'review', 'update', 'create', 'send', 'check'];
+      
+      if (!knownNamesSet.has(nameLower) && 
+          !commonWords.includes(nameLower) && 
+          potentialName.length >= 2) {
+        potentialNames.add(potentialName);
+      }
+    }
+    
+    // Create handles for new people (use first name lowercase as handle)
+    const newPeopleToCreate = Array.from(potentialNames).map(name => {
+      const firstName = name.split(' ')[0];
+      const handle = firstName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return {
+        name: name,
+        handle: handle,
+        displayName: name,
+      };
+    }).filter(p => p.handle.length >= 2);
+    
+    const enhancedTasks = result.tasks.map((task, taskIndex) => {
+      const enhancedTask = { ...task };
+      
+      // Build a context string for this task (title + description)
+      const taskContext = `${task.title} ${task.description || ''}`.toLowerCase();
+      
+      // Try to find which part of the transcription relates to this task
+      // Look for the task title in the transcription to get context
+      const titleWords = task.title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      let taskContextStart = -1;
+      if (titleWords.length > 0) {
+        const firstSignificantWord = titleWords[0];
+        taskContextStart = transcriptionLower.indexOf(firstSignificantWord);
+      }
+      
+      // First, check known people
+      for (const person of knownPeople) {
+        const nameVariations = [
+          person.displayName,
+          person.displayName.toLowerCase(),
+          person.handle,
+          person.handle.toLowerCase(),
+          person.displayName.split(' ')[0], // First name
+          person.displayName.split(' ')[0].toLowerCase(),
+        ].filter(Boolean) as string[];
+        
+        // Check if any variation appears in the transcription
+        for (const variation of nameVariations) {
+          if (!variation) continue;
+          
+          // Look for the name as a whole word (not part of another word)
+          const regex = new RegExp(`\\b${variation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          const nameMatch = regex.exec(transcriptionLower);
+          
+          if (nameMatch) {
+            const handle = `@${person.handle}`;
+            
+            // Check if already tagged
+            const isExecutor = enhancedTask.executor?.toLowerCase() === handle.toLowerCase();
+            const isStakeholder = enhancedTask.stakeholders?.some(
+              (s) => s.toLowerCase() === handle.toLowerCase()
+            );
+            
+            if (!isExecutor && !isStakeholder) {
+              // Check context around the name mention for delegation keywords
+              const matchIndex = nameMatch.index || 0;
+              const contextBefore = transcriptionLower.substring(Math.max(0, matchIndex - 50), matchIndex);
+              const contextAfter = transcriptionLower.substring(matchIndex, Math.min(transcriptionLower.length, matchIndex + 50));
+              const fullContext = contextBefore + ' ' + contextAfter;
+              
+              // Check for executor keywords
+              const executorKeywords = [
+                'assign to', 'assigned to', 'delegate to', 'delegated to',
+                'give to', 'hand to', 'send to', 'ask', 'tell', 'have',
+                'will do', 'should do', 'needs to', 'responsible for'
+              ];
+              
+              const isExecutorContext = executorKeywords.some(keyword => 
+                fullContext.includes(keyword)
+              );
+              
+              if (isExecutorContext && !enhancedTask.executor) {
+                // Tag as executor if context suggests delegation
+                enhancedTask.executor = handle;
+              } else {
+                // Otherwise add as stakeholder
+                enhancedTask.stakeholders = enhancedTask.stakeholders || [];
+                if (!enhancedTask.stakeholders.includes(handle)) {
+                  enhancedTask.stakeholders.push(handle);
+                }
+              }
+            }
+            
+            // Break after first match found
+            break;
+          }
+        }
+      }
+      
+      // Second, check for new people mentioned
+      for (const newPerson of newPeopleToCreate) {
+        const nameVariations = [
+          newPerson.name,
+          newPerson.name.toLowerCase(),
+          newPerson.displayName,
+          newPerson.displayName.toLowerCase(),
+          newPerson.name.split(' ')[0], // First name
+          newPerson.name.split(' ')[0].toLowerCase(),
+        ].filter(Boolean) as string[];
+        
+        // Check if any variation appears in the transcription
+        for (const variation of nameVariations) {
+          if (!variation) continue;
+          
+          // Look for the name as a whole word
+          const regex = new RegExp(`\\b${variation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          const nameMatch = regex.exec(transcriptionLower);
+          
+          if (nameMatch) {
+            const handle = `@${newPerson.handle}`;
+            
+            // Check if already tagged
+            const isExecutor = enhancedTask.executor?.toLowerCase() === handle.toLowerCase();
+            const isStakeholder = enhancedTask.stakeholders?.some(
+              (s) => s.toLowerCase() === handle.toLowerCase()
+            );
+            
+            if (!isExecutor && !isStakeholder) {
+              // Check context around the name mention for delegation keywords
+              const matchIndex = nameMatch.index || 0;
+              const contextBefore = transcriptionLower.substring(Math.max(0, matchIndex - 50), matchIndex);
+              const contextAfter = transcriptionLower.substring(matchIndex, Math.min(transcriptionLower.length, matchIndex + 50));
+              const fullContext = contextBefore + ' ' + contextAfter;
+              
+              // Check for executor keywords
+              const executorKeywords = [
+                'assign to', 'assigned to', 'delegate to', 'delegated to',
+                'give to', 'hand to', 'send to', 'ask', 'tell', 'have',
+                'will do', 'should do', 'needs to', 'responsible for'
+              ];
+              
+              const isExecutorContext = executorKeywords.some(keyword => 
+                fullContext.includes(keyword)
+              );
+              
+              if (isExecutorContext && !enhancedTask.executor) {
+                // Tag as executor if context suggests delegation
+                enhancedTask.executor = handle;
+              } else {
+                // Otherwise add as stakeholder
+                enhancedTask.stakeholders = enhancedTask.stakeholders || [];
+                if (!enhancedTask.stakeholders.includes(handle)) {
+                  enhancedTask.stakeholders.push(handle);
+                }
+              }
+            }
+            
+            // Break after first match found
+            break;
+          }
+        }
+      }
+      
+      return enhancedTask;
+    });
+    
+    // Add new people to the result so they can be created
+    const newPeopleList = newPeopleToCreate.map(p => ({
+      handle: p.handle,
+      displayName: p.displayName,
+    }));
+    
+    // Ensure transcription is included
+    return {
+      ...result,
+      transcription,
+      tasks: enhancedTasks,
+      newPeople: newPeopleList,
+    };
+  } catch (error) {
+    console.error('Audio transcription failed:', error);
+    return null;
+  }
+}
+

@@ -14,6 +14,9 @@
   const timezone = getUserTimezone();
 
   let isEditing = $state(false);
+  let selectedStakeholders = $state<string[]>(
+    data.task.stakeholders.map((s) => s.personId)
+  );
   let formData = $state({
     title: data.task.title,
     description: data.task.description || "",
@@ -38,7 +41,16 @@
       priority: data.task.priority || "",
       executorPersonId: data.task.executorPersonId || "",
     };
+    selectedStakeholders = data.task.stakeholders.map((s) => s.personId);
   });
+
+  function toggleStakeholder(personId: string) {
+    if (selectedStakeholders.includes(personId)) {
+      selectedStakeholders = selectedStakeholders.filter((id) => id !== personId);
+    } else {
+      selectedStakeholders = [...selectedStakeholders, personId];
+    }
+  }
 
   function getStatusColor(status: string) {
     switch (status) {
@@ -267,6 +279,32 @@
                       {/each}
                     </select>
                   </div>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Stakeholders
+                  </label>
+                  <div class="flex flex-wrap gap-2">
+                    {#each data.people.filter((p) => p.id !== data.task.accountablePersonId) as person}
+                      <button
+                        type="button"
+                        onclick={() => toggleStakeholder(person.id)}
+                        class="px-3 py-1 rounded-full text-sm border transition-colors {selectedStakeholders.includes(
+                          person.id
+                        )
+                          ? 'bg-blue-100 border-blue-300 text-blue-700'
+                          : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'}"
+                      >
+                        {person.displayName}
+                      </button>
+                    {/each}
+                  </div>
+                  <input
+                    type="hidden"
+                    name="stakeholderPersonIds"
+                    value={selectedStakeholders.join(',')}
+                  />
                 </div>
 
                 <div class="flex justify-end gap-3 pt-4">

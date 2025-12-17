@@ -180,7 +180,12 @@
 											/>
 										{:else}
 											<div>
-												<div class="font-medium text-gray-900">{person.displayName}</div>
+												<a
+													href="/people/{person.handle}"
+													class="font-medium text-gray-900 hover:text-blue-600 hover:underline transition-colors"
+												>
+													{person.displayName}
+												</a>
 												<div class="text-sm text-gray-500">@{person.handle}</div>
 											</div>
 										{/if}

@@ -61,6 +61,7 @@ export const actions: Actions = {
     const projectId = formData.get('projectId') as string;
     const priority = formData.get('priority') as string;
     const executorPersonId = formData.get('executorPersonId') as string;
+    const stakeholderPersonIdsStr = formData.get('stakeholderPersonIds') as string;
     const timezone = formData.get('timezone') as string;
 
     // Convert date string from user's timezone to UTC for storage
@@ -69,6 +70,12 @@ export const actions: Actions = {
       dueAt = dateStringToUTC(dueAtString, timezone || undefined);
     }
 
+    // Parse stakeholder IDs
+    const stakeholderPersonIds = stakeholderPersonIdsStr
+      ? stakeholderPersonIdsStr.split(',').filter((id) => id.trim() !== '')
+      : [];
+
+    // Update task and stakeholders
     await db.task.update({
       where: { id: params.id },
       data: {
@@ -79,6 +86,12 @@ export const actions: Actions = {
         projectId: projectId || null,
         priority: priority || null,
         executorPersonId: executorPersonId || null,
+        stakeholders: {
+          deleteMany: {}, // Delete all existing stakeholders
+          create: stakeholderPersonIds.map((personId) => ({
+            personId,
+          })),
+        },
       },
     });
 

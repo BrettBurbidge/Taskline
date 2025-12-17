@@ -9,6 +9,7 @@
 	let selectedMoveToProject = $state<string>('none');
 	let isDeleting = $state(false);
 	let deleteError = $state('');
+	let isCompleting = $state(false);
 
 	function getStatusColor(status: string) {
 		switch (status) {
@@ -22,6 +23,35 @@
 				return 'bg-green-100 text-green-700';
 			default:
 				return 'bg-gray-100 text-gray-700';
+		}
+	}
+
+	async function completeProject() {
+		if (!confirm(`Mark "${data.project.name}" as completed? This will delete all pending follow-ups for tasks in this project.`)) {
+			return;
+		}
+
+		isCompleting = true;
+
+		try {
+			const response = await fetch(`/api/projects/${data.project.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					isActive: false,
+				}),
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to complete project');
+			}
+
+			// Reload the page to show updated status
+			window.location.reload();
+		} catch (err) {
+			alert(err instanceof Error ? err.message : 'Failed to complete project');
+		} finally {
+			isCompleting = false;
 		}
 	}
 
@@ -86,7 +116,18 @@
 					>
 						+ Add Task
 					</a>
+					{#if data.project.isActive}
+						<button
+							type="button"
+							onclick={completeProject}
+							disabled={isCompleting}
+							class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{isCompleting ? 'Completing...' : '✓ Mark as Completed'}
+						</button>
+					{/if}
 					<button
+						type="button"
 						onclick={() => (showDeleteModal = true)}
 						class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
 					>

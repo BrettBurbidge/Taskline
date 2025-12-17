@@ -19,6 +19,17 @@
 	let checkingAI = $state(true);
 	let aiSuggestion = $state<any>(null);
 	let loadingSuggestion = $state(false);
+	
+	// Audio recording state
+	let isRecording = $state(false);
+	let recordingTime = $state(0);
+	let mediaRecorder: MediaRecorder | null = $state(null);
+	let audioStream: MediaStream | null = $state(null);
+	let audioChunks: Blob[] = $state([]);
+	let recordingInterval: ReturnType<typeof setInterval> | null = $state(null);
+	let isProcessingAudio = $state(false);
+	let transcribedTasks = $state<any[]>([]);
+	let showTasksModal = $state(false);
 
 	// Check if AI is available on mount (only once)
 	let mounted = false;
@@ -327,6 +338,314 @@
 			loadingSuggestion = false;
 		}
 	}
+
+	// Audio recording functions
+	async function startRecording() {
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			audioStream = stream;
+			mediaRecorder = new MediaRecorder(stream);
+			audioChunks = [];
+
+			mediaRecorder.ondataavailable = (event) => {
+				if (event.data.size > 0) {
+					audioChunks = [...audioChunks, event.data];
+				}
+			};
+
+			mediaRecorder.onstop = async () => {
+				if (audioStream) {
+					audioStream.getTracks().forEach((track) => track.stop());
+					audioStream = null;
+				}
+				await processAudioRecording();
+			};
+
+			mediaRecorder.start();
+			isRecording = true;
+			recordingTime = 0;
+			recordingInterval = setInterval(() => {
+				recordingTime++;
+			}, 1000);
+		} catch (err) {
+			errorMessage = err instanceof Error ? err.message : 'Failed to start recording. Please allow microphone access.';
+			isRecording = false;
+			audioStream = null;
+		}
+	}
+
+	function stopRecording() {
+		if (mediaRecorder && isRecording) {
+			mediaRecorder.stop();
+			isRecording = false;
+			if (recordingInterval) {
+				clearInterval(recordingInterval);
+				recordingInterval = null;
+			}
+		}
+	}
+
+	function cancelRecording() {
+		if (mediaRecorder && isRecording) {
+			mediaRecorder.stop();
+		}
+		if (audioStream) {
+			audioStream.getTracks().forEach((track) => track.stop());
+			audioStream = null;
+		}
+		isRecording = false;
+		audioChunks = [];
+		recordingTime = 0;
+		if (recordingInterval) {
+			clearInterval(recordingInterval);
+			recordingInterval = null;
+		}
+		transcribedTasks = [];
+		showTasksModal = false;
+		mediaRecorder = null;
+	}
+
+	function removeTask(index: number) {
+		transcribedTasks = transcribedTasks.filter((_, i) => i !== index);
+	}
+
+	function addEmptyTask() {
+		transcribedTasks = [
+			...transcribedTasks,
+			{
+				title: '',
+				description: null,
+				dueDate: null,
+				executor: null,
+				stakeholders: [],
+				project: null,
+			},
+		];
+	}
+
+	function formatRecordingTime(seconds: number): string {
+		const mins = Math.floor(seconds / 60);
+		const secs = seconds % 60;
+		return `${mins}:${secs.toString().padStart(2, '0')}`;
+	}
+
+	async function processAudioRecording() {
+		if (audioChunks.length === 0) {
+			errorMessage = 'No audio recorded';
+			return;
+		}
+
+		isProcessingAudio = true;
+		errorMessage = '';
+
+		try {
+			const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+			// Convert Blob to File for OpenAI API
+			const audioFile = new File([audioBlob], 'recording.webm', { type: 'audio/webm' });
+			const formData = new FormData();
+			formData.append('audio', audioFile);
+			formData.append('currentDate', new Date().toISOString());
+
+			const response = await fetch('/api/ai/transcribe-audio', {
+				method: 'POST',
+				body: formData,
+			});
+
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.error || 'Failed to transcribe audio');
+			}
+
+			const result = await response.json();
+			transcribedTasks = result.tasks || [];
+
+			// Create new people that were detected in the transcription
+			if (result.newPeople && result.newPeople.length > 0) {
+				for (const newPerson of result.newPeople) {
+					// Check if person already exists
+					const exists = data.people.find(
+						(p) => p.handle.toLowerCase() === newPerson.handle.toLowerCase()
+					);
+					
+					if (!exists) {
+						try {
+							const response = await fetch('/api/people', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									handle: newPerson.handle.toLowerCase(),
+									displayName: newPerson.displayName,
+									source: 'mention'
+								})
+							});
+							
+							if (response.ok) {
+								const createdPerson = await response.json();
+								// Add to local data so it's available in the modal
+								data.people = [...data.people, createdPerson];
+							}
+						} catch (err) {
+							console.warn(`Failed to create person @${newPerson.handle}:`, err);
+						}
+					}
+				}
+			}
+
+			if (transcribedTasks.length === 0) {
+				errorMessage = 'No tasks found in the recording';
+			} else {
+				// Show modal for editing tasks instead of auto-creating
+				showTasksModal = true;
+			}
+		} catch (err) {
+			errorMessage = err instanceof Error ? err.message : 'Failed to process audio';
+		} finally {
+			isProcessingAudio = false;
+			audioChunks = [];
+		}
+	}
+
+	async function createTasksFromTranscription(tasks: any[]) {
+		isSubmitting = true;
+		errorMessage = '';
+
+		try {
+			// Process each task
+			for (const task of tasks) {
+				// Step 1: Create any new people mentioned
+				const createdPeople = new Map<string, string>();
+				const allMentions = [
+					...(task.stakeholders || []),
+					...(task.executor ? [task.executor] : [])
+				];
+
+				for (const mention of allMentions) {
+					const handle = mention.replace('@', '').toLowerCase();
+					const existingPerson = data.people.find((p) => p.handle.toLowerCase() === handle);
+					
+					if (!existingPerson && !createdPeople.has(handle)) {
+						try {
+							const response = await fetch('/api/people', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									handle: handle,
+									displayName: handle.charAt(0).toUpperCase() + handle.slice(1),
+									source: 'mention'
+								})
+							});
+							
+							if (response.ok) {
+								const person = await response.json();
+								createdPeople.set(handle, person.id);
+							}
+						} catch (err) {
+							console.warn(`Failed to create person @${handle}:`, err);
+						}
+					}
+				}
+
+				// Step 2: Map handles to person IDs
+				const stakeholderIds: string[] = [];
+				for (const mention of (task.stakeholders || [])) {
+					const handle = mention.replace('@', '').toLowerCase();
+					if (createdPeople.has(handle)) {
+						stakeholderIds.push(createdPeople.get(handle)!);
+					} else {
+						const person = data.people.find((p) => p.handle.toLowerCase() === handle);
+						if (person) {
+							stakeholderIds.push(person.id);
+						}
+					}
+				}
+
+				// Step 3: Determine executor
+				let finalExecutorId = data.currentUser!.id;
+				if (task.executor) {
+					const handle = task.executor.replace('@', '').toLowerCase();
+					if (createdPeople.has(handle)) {
+						finalExecutorId = createdPeople.get(handle)!;
+					} else {
+						const person = data.people.find((p) => p.handle.toLowerCase() === handle);
+						if (person) {
+							finalExecutorId = person.id;
+						}
+					}
+				}
+
+				// Step 4: Handle project
+				let finalProjectId = null;
+				if (task.project) {
+					// Remove # if present
+					const projectName = task.project.replace(/^#/, '').trim();
+					const existingProject = data.projects.find(
+						(p) => p.name.toLowerCase() === projectName.toLowerCase()
+					);
+					
+					if (existingProject) {
+						finalProjectId = existingProject.id;
+					} else {
+						// Create new project
+						const hasSpacesOrSpecialChars = /\s|[^a-zA-Z0-9_]/.test(projectName);
+						const nameToCreate = hasSpacesOrSpecialChars
+							? projectName
+							: projectName.charAt(0).toUpperCase() + projectName.slice(1).toLowerCase();
+						
+						try {
+							const response = await fetch('/api/projects', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									name: nameToCreate,
+									description: null
+								})
+							});
+							
+							if (response.ok) {
+								const project = await response.json();
+								finalProjectId = project.id;
+							}
+						} catch (err) {
+							console.warn(`Failed to create project #${projectName}:`, err);
+						}
+					}
+				}
+
+				// Step 5: Create the task
+				await fetch('/api/tasks', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						title: task.title.trim(),
+						description: task.description?.trim() || null,
+						dueAt: task.dueDate || null,
+						projectId: finalProjectId,
+						accountablePersonId: data.currentUser!.id,
+						executorPersonId: finalExecutorId,
+						stakeholderPersonIds: stakeholderIds,
+						boardDate: new Date().toISOString().split('T')[0]
+					})
+				});
+			}
+
+			// Reset form and redirect
+			title = '';
+			description = '';
+			dueAt = '';
+			projectId = '';
+			executorPersonId = '';
+			selectedStakeholders = [];
+			showDetails = false;
+			transcribedTasks = [];
+
+			// Redirect to board
+			goto('/board');
+		} catch (err) {
+			errorMessage = err instanceof Error ? err.message : 'Failed to create tasks from audio';
+		} finally {
+			isSubmitting = false;
+		}
+	}
 </script>
 
 <div class="min-h-screen bg-gray-50 py-8">
@@ -346,16 +665,57 @@
 			<div class="space-y-4">
 				<!-- Title Input -->
 				<div>
-					<label for="title" class="block text-sm font-medium text-gray-700 mb-2">
-						Task Title *
-					</label>
+					<div class="flex items-center justify-between mb-2">
+						<label for="title" class="block text-sm font-medium text-gray-700">
+							Task Title *
+						</label>
+						{#if aiEnabled && !checkingAI}
+							<div class="flex items-center gap-2">
+								{#if isRecording}
+									<button
+										type="button"
+										onclick={stopRecording}
+										class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+									>
+										<span class="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+										<span>Stop ({formatRecordingTime(recordingTime)})</span>
+									</button>
+									<button
+										type="button"
+										onclick={cancelRecording}
+										class="px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+									>
+										Cancel
+									</button>
+								{:else if isProcessingAudio}
+									<button
+										type="button"
+										disabled
+										class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-100 text-blue-700 disabled:opacity-50"
+									>
+										<span>🎤 Processing audio...</span>
+									</button>
+								{:else}
+									<button
+										type="button"
+										onclick={startRecording}
+										disabled={isSubmitting}
+										class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+									>
+										<span>🎤 Record</span>
+									</button>
+								{/if}
+							</div>
+						{/if}
+					</div>
 					<input
 						id="title"
 						type="text"
 						bind:value={title}
 						onkeypress={handleKeyPress}
 						placeholder="What needs to be done?"
-						class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+						disabled={isRecording || isProcessingAudio}
+						class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
 					/>
 				</div>
 
@@ -450,6 +810,7 @@
 						</div>
 					</div>
 				{/if}
+
 
 				<!-- Toggle Details and AI Assist -->
 				<div class="flex items-center gap-4">
@@ -561,12 +922,18 @@
 
 				<!-- Action Buttons -->
 				<div class="flex justify-between items-center pt-4">
-					<a
-						href="/board"
+					<button
+						type="button"
+						onclick={() => {
+							if (isRecording) {
+								cancelRecording();
+							}
+							goto('/board');
+						}}
 						class="text-sm text-gray-600 hover:text-gray-700 font-medium"
 					>
 						Cancel
-					</a>
+					</button>
 					<button
 						onclick={createTask}
 						disabled={isSubmitting || !title.trim()}
@@ -589,8 +956,208 @@
 				<li>• Use <code class="bg-blue-100 px-1 rounded">#"Project Name"</code> for projects with spaces or special characters like <code class="bg-blue-100 px-1 rounded">/</code></li>
 				<li>• Type dates like <code class="bg-blue-100 px-1 rounded">Thursday</code>, <code class="bg-blue-100 px-1 rounded">next Monday</code>, or <code class="bg-blue-100 px-1 rounded">tomorrow</code> to auto-detect due dates</li>
 				<li>• New people and projects are auto-created from @mentions and #tags</li>
+				<li>• Click <code class="bg-blue-100 px-1 rounded">🎤 Record</code> to record audio and extract multiple tasks automatically</li>
 			</ul>
 		</div>
 	</div>
+
+	<!-- Tasks Review Modal -->
+	{#if showTasksModal && transcribedTasks.length > 0}
+		<div
+			class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+			onclick={(e) => {
+				if (e.target === e.currentTarget && !isSubmitting) {
+					showTasksModal = false;
+				}
+			}}
+		>
+			<div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto my-8">
+				<div class="sticky top-0 bg-white border-b border-gray-200 p-6 z-10">
+					<div class="flex items-center justify-between mb-2">
+						<h2 class="text-2xl font-bold text-gray-900">
+							🎤 Review Tasks from Recording
+						</h2>
+						<button
+							type="button"
+							onclick={() => (showTasksModal = false)}
+							class="text-gray-400 hover:text-gray-600 text-2xl"
+						>
+							×
+						</button>
+					</div>
+					<p class="text-sm text-gray-600">
+						Edit tasks below, then click "Create All Tasks" to add them to your board.
+					</p>
+				</div>
+
+				<div class="p-6 space-y-4">
+					{#each transcribedTasks as task, index}
+						<div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+							<div class="flex items-start justify-between mb-3">
+								<span class="text-sm font-medium text-gray-500">Task {index + 1}</span>
+								<button
+									type="button"
+									onclick={() => removeTask(index)}
+									class="text-red-600 hover:text-red-700 text-sm font-medium"
+								>
+									Remove
+								</button>
+							</div>
+
+							<div class="space-y-3">
+								<!-- Title -->
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Title *
+									</label>
+									<input
+										type="text"
+										bind:value={task.title}
+										placeholder="Task title"
+										class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+									/>
+								</div>
+
+								<!-- Description -->
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Description
+									</label>
+									<textarea
+										bind:value={task.description}
+										placeholder="Additional context..."
+										rows="2"
+										class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+									></textarea>
+								</div>
+
+								<!-- Due Date and Project -->
+								<div class="grid grid-cols-2 gap-3">
+									<div>
+										<label class="block text-sm font-medium text-gray-700 mb-1">
+											Due Date
+										</label>
+										<input
+											type="date"
+											bind:value={task.dueDate}
+											class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+										/>
+									</div>
+
+									<div>
+										<label class="block text-sm font-medium text-gray-700 mb-1">
+											Project
+										</label>
+										<input
+											type="text"
+											bind:value={task.project}
+											placeholder="#ProjectName or Project Name"
+											class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+										/>
+										<div class="mt-1 text-xs text-gray-500">
+											Use #ProjectName for existing projects, or type a new project name
+										</div>
+									</div>
+								</div>
+
+								<!-- Executor -->
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-1">
+										Executor
+									</label>
+									<select
+										bind:value={task.executor}
+										class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+									>
+										<option value="">Me ({data.currentUser?.displayName})</option>
+										{#each data.people.filter((p) => p.id !== data.currentUser?.id) as person}
+											<option value={`@${person.handle}`}>
+												{person.displayName} (@{person.handle})
+											</option>
+										{/each}
+									</select>
+								</div>
+
+								<!-- Stakeholders -->
+								<div>
+									<label class="block text-sm font-medium text-gray-700 mb-2">
+										Stakeholders
+									</label>
+									<div class="flex flex-wrap gap-2">
+										{#each data.people.filter((p) => p.id !== data.currentUser?.id) as person}
+											<button
+												type="button"
+												onclick={() => {
+													const handle = `@${person.handle}`;
+													if (!task.stakeholders) {
+														task.stakeholders = [];
+													}
+													const index = task.stakeholders.indexOf(handle);
+													if (index === -1) {
+														task.stakeholders = [...task.stakeholders, handle];
+													} else {
+														task.stakeholders = task.stakeholders.filter((h) => h !== handle);
+													}
+												}}
+												class="px-3 py-1 rounded-full text-sm border transition-colors {(task.stakeholders || []).includes(
+													`@${person.handle}`
+												)
+													? 'bg-blue-100 border-blue-300 text-blue-700'
+													: 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'}"
+											>
+												{person.displayName}
+											</button>
+										{/each}
+									</div>
+								</div>
+							</div>
+						</div>
+					{/each}
+
+					<!-- Add Task Button -->
+					<button
+						type="button"
+						onclick={addEmptyTask}
+						class="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors font-medium"
+					>
+						+ Add Another Task
+					</button>
+				</div>
+
+				<!-- Modal Footer -->
+				<div class="sticky bottom-0 bg-white border-t border-gray-200 p-6 flex justify-between items-center">
+					<button
+						type="button"
+						onclick={() => {
+							showTasksModal = false;
+							transcribedTasks = [];
+						}}
+						disabled={isSubmitting}
+						class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						Cancel
+					</button>
+					<button
+						type="button"
+						onclick={async () => {
+							// Filter out tasks without titles
+							const validTasks = transcribedTasks.filter((t) => t.title?.trim());
+							if (validTasks.length === 0) {
+								errorMessage = 'Please add at least one task with a title';
+								return;
+							}
+							showTasksModal = false;
+							await createTasksFromTranscription(validTasks);
+							transcribedTasks = [];
+						}}
+						disabled={isSubmitting || transcribedTasks.filter((t) => t.title?.trim()).length === 0}
+						class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+					>
+						{isSubmitting ? 'Creating...' : `Create ${transcribedTasks.filter((t) => t.title?.trim()).length} Task${transcribedTasks.filter((t) => t.title?.trim()).length === 1 ? '' : 's'}`}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
 

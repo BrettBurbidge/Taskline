@@ -2,6 +2,53 @@ import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import type { RequestHandler } from './$types';
 
+// PATCH /api/projects/[id] - update a project
+export const PATCH: RequestHandler = async ({ params, request }) => {
+  const projectId = params.id;
+  const body = await request.json();
+  const { isActive } = body;
+
+  // Check if project exists
+  const project = await db.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) {
+    throw error(404, 'Project not found');
+  }
+
+  // Update project
+  const updatedProject = await db.project.update({
+    where: { id: projectId },
+    data: {
+      isActive: isActive !== undefined ? isActive : project.isActive,
+    },
+  });
+
+  // If project is being marked as inactive (completed), delete all follow-ups for tasks in this project
+  if (isActive === false && project.isActive === true) {
+    // Get all task IDs for this project
+    const projectTasks = await db.task.findMany({
+      where: { projectId },
+      select: { id: true },
+    });
+
+    const taskIds = projectTasks.map((t) => t.id);
+
+    if (taskIds.length > 0) {
+      // Delete all pending follow-ups for tasks in this project
+      await db.followUp.deleteMany({
+        where: {
+          taskId: { in: taskIds },
+          status: 'pending',
+        },
+      });
+    }
+  }
+
+  return json(updatedProject);
+};
+
 // DELETE /api/projects/[id] - delete a project
 export const DELETE: RequestHandler = async ({ params, request }) => {
   const projectId = params.id;
