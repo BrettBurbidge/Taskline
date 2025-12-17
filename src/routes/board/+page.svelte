@@ -106,10 +106,10 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ boardDate: data.todayDate }),
       });
-      
+
       const result = await response.json();
       await invalidateAll();
-      
+
       // Show feedback modal
       if (result.count === 0) {
         followUpInfoMessage = "no_followups";
@@ -547,23 +547,25 @@
 
             <div class="space-y-4 text-gray-700">
               <p class="font-medium">
-                Follow-ups are only created for tasks due in the <strong>future</strong> (tomorrow or later).
+                Follow-ups are only created for tasks due in the <strong
+                  >future</strong
+                > (tomorrow or later).
               </p>
 
               <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h3 class="font-semibold text-blue-900 mb-2">Why?</h3>
                 <ul class="text-sm text-blue-800 space-y-2">
                   <li>
-                    • <strong>Tasks due today or overdue</strong> are already
-                    visible on your board
+                    • <strong>Tasks due today or overdue</strong> are already visible
+                    on your board
                   </li>
                   <li>
                     • <strong>Follow-ups are for proactive check-ins</strong> on
                     future work
                   </li>
                   <li>
-                    • No need for reminders about tasks you're already
-                    working on!
+                    • No need for reminders about tasks you're already working
+                    on!
                   </li>
                 </ul>
               </div>
@@ -573,8 +575,9 @@
                   💡 To generate follow-ups:
                 </h3>
                 <p class="text-sm text-green-800">
-                  Make sure you have active tasks with due dates in the future (tomorrow or later).
-                  The system scans ALL your active tasks, not just today's board.
+                  Make sure you have active tasks with due dates in the future
+                  (tomorrow or later). The system scans ALL your active tasks,
+                  not just today's board.
                 </p>
               </div>
             </div>
@@ -591,8 +594,9 @@
 
             <div class="space-y-4 text-gray-700">
               <p class="text-lg">
-                Created <strong class="text-green-600">{followUpInfoMessage.split(":")[1]} follow-up(s)</strong> for all your
-                active tasks with future due dates.
+                Created <strong class="text-green-600"
+                  >{followUpInfoMessage.split(":")[1]} follow-up(s)</strong
+                > for all your active tasks with future due dates.
               </p>
 
               <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -600,8 +604,9 @@
                   📅 When will they appear?
                 </h3>
                 <p class="text-sm text-blue-800">
-                  Follow-ups will appear in the "Follow-ups" sidebar when they're due. 
-                  Frequency is based on how urgent the task is (daily for tasks due soon, weekly for tasks due later).
+                  Follow-ups will appear in the "Follow-ups" sidebar when
+                  they're due. Frequency is based on how urgent the task is
+                  (daily for tasks due soon, weekly for tasks due later).
                 </p>
               </div>
             </div>

@@ -106,7 +106,9 @@
             <p class="text-gray-600 mt-1">
               {formatDateInUserTZ(parseISO(data.date), "MMMM d, yyyy")}
               {#if isToday(data.date)}
-                <span class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                <span
+                  class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded"
+                >
                   Today
                 </span>
               {/if}
@@ -146,7 +148,9 @@
       <div class="lg:col-span-2 space-y-4">
         <!-- Due on This Day -->
         {#if data.dueTasks.length > 0}
-          <div class="bg-orange-50 rounded-lg shadow-sm border border-orange-200">
+          <div
+            class="bg-orange-50 rounded-lg shadow-sm border border-orange-200"
+          >
             <div class="p-4 border-b border-orange-200">
               <h2 class="text-lg font-semibold text-orange-900">
                 📅 Due on This Day
@@ -383,9 +387,7 @@
 
         <!-- Quick Stats -->
         <div class="bg-blue-50 rounded-lg border border-blue-200 p-4">
-          <h3 class="text-sm font-semibold text-blue-900 mb-3">
-            Day Summary
-          </h3>
+          <h3 class="text-sm font-semibold text-blue-900 mb-3">Day Summary</h3>
           <div class="space-y-2 text-sm text-blue-800">
             {#if data.dueTasks.length > 0}
               <div class="flex justify-between">
@@ -417,4 +419,3 @@
     </div>
   </div>
 </div>
-
