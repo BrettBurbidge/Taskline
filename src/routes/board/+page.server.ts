@@ -1,6 +1,6 @@
-import { db } from '$lib/db';
-import { format, startOfDay, addDays, isEqual, isBefore } from 'date-fns';
-import type { PageServerLoad } from './$types';
+import { db } from "$lib/db";
+import { format, startOfDay, addDays, isEqual, isBefore } from "date-fns";
+import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async () => {
   const today = startOfDay(new Date());
@@ -15,14 +15,14 @@ export const load: PageServerLoad = async () => {
         // Tasks scheduled for today
         {
           boardDate: today,
-          status: { in: ['not_started', 'in_progress', 'waiting'] },
+          status: { in: ["not_started", "in_progress", "waiting"] },
         },
         // Tasks due today or overdue (show even if scheduled for a future board date)
         {
           dueAt: {
             lt: tomorrow, // Due today or earlier
           },
-          status: { in: ['not_started', 'in_progress', 'waiting'] },
+          status: { in: ["not_started", "in_progress", "waiting"] },
         },
       ],
     },
@@ -36,25 +36,28 @@ export const load: PageServerLoad = async () => {
         },
       },
     },
-    orderBy: [{ dueAt: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+    orderBy: [{ dueAt: "asc" }, { sortOrder: "asc" }, { createdAt: "desc" }],
   });
 
   // Separate overdue/due tasks from scheduled tasks
-  const scheduledTasks = tasks.filter(task => {
+  const scheduledTasks = tasks.filter((task) => {
     if (!task.boardDate) return false;
     const taskBoardDate = startOfDay(new Date(task.boardDate));
     // Task is scheduled specifically for today
     return isEqual(taskBoardDate, today);
   });
 
-  const dueTasks = tasks.filter(task => {
-    const taskBoardDate = task.boardDate ? startOfDay(new Date(task.boardDate)) : null;
+  const dueTasks = tasks.filter((task) => {
+    const taskBoardDate = task.boardDate
+      ? startOfDay(new Date(task.boardDate))
+      : null;
     const taskDueAt = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
-    
+
     // Task is due today or overdue, AND is NOT scheduled for today
     const isDueOrOverdue = taskDueAt && isBefore(taskDueAt, tomorrow); // dueAt is today or before
-    const notScheduledForToday = !taskBoardDate || !isEqual(taskBoardDate, today);
-    
+    const notScheduledForToday =
+      !taskBoardDate || !isEqual(taskBoardDate, today);
+
     return isDueOrOverdue && notScheduledForToday;
   });
 
@@ -65,7 +68,7 @@ export const load: PageServerLoad = async () => {
         gte: today,
         lt: tomorrow,
       },
-      status: 'pending',
+      status: "pending",
     },
     include: {
       task: {
@@ -75,7 +78,7 @@ export const load: PageServerLoad = async () => {
       },
       targetPerson: true,
     },
-    orderBy: { dueAt: 'asc' },
+    orderBy: { dueAt: "asc" },
   });
 
   return {
@@ -83,7 +86,6 @@ export const load: PageServerLoad = async () => {
     scheduledTasks,
     dueTasks,
     followUps,
-    todayDate: format(today, 'yyyy-MM-dd'),
+    todayDate: format(today, "yyyy-MM-dd"),
   };
 };
-

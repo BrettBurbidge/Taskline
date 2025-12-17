@@ -147,10 +147,11 @@
 						? 'border-blue-500 ring-2 ring-blue-100'
 						: 'border-gray-200'} overflow-hidden"
 				>
-					<div
-						class="p-3 {isToday(date)
+					<a
+						href="/day/{date}"
+						class="block p-3 {isToday(date)
 							? 'bg-blue-50 border-b border-blue-200'
-							: 'bg-gray-50 border-b border-gray-200'}"
+							: 'bg-gray-50 border-b border-gray-200'} hover:bg-opacity-80 transition-colors"
 					>
 						<div class="text-xs font-medium text-gray-600">
 							{getDayName(date)}
@@ -160,7 +161,14 @@
 						>
 							{getDayNumber(date)}
 						</div>
-					</div>
+						<div class="text-xs text-gray-500 mt-1">
+							{#if data.tasksByDate[date]}
+								{data.tasksByDate[date].length} task{data.tasksByDate[date].length !== 1 ? 's' : ''}
+							{:else}
+								View day →
+							{/if}
+						</div>
+					</a>
 
 					<div class="p-3 space-y-2 min-h-[200px]">
 						{#if data.tasksByDate[date] && data.tasksByDate[date].length > 0}
