@@ -5,8 +5,11 @@ import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ cookies }) => {
   // Get user's timezone from cookie (set by client) or use default
-  const userTimezone = cookies.get("user_timezone") || process.env.DEFAULT_TIMEZONE || "America/Denver";
-  
+  const userTimezone =
+    cookies.get("user_timezone") ||
+    process.env.DEFAULT_TIMEZONE ||
+    "America/Denver";
+
   // Calculate today in user's timezone (as UTC Date representing start of day in user TZ)
   const today = getStartOfDayUTC(new Date(), userTimezone);
   const tomorrow = addDays(today, 1);
@@ -47,7 +50,10 @@ export const load: PageServerLoad = async ({ cookies }) => {
   // Separate overdue/due tasks from scheduled tasks
   const scheduledTasks = tasks.filter((task) => {
     if (!task.boardDate) return false;
-    const taskBoardDate = getStartOfDayUTC(new Date(task.boardDate), userTimezone);
+    const taskBoardDate = getStartOfDayUTC(
+      new Date(task.boardDate),
+      userTimezone
+    );
     // Task is scheduled specifically for today
     return isEqual(taskBoardDate, today);
   });
@@ -56,7 +62,9 @@ export const load: PageServerLoad = async ({ cookies }) => {
     const taskBoardDate = task.boardDate
       ? getStartOfDayUTC(new Date(task.boardDate), userTimezone)
       : null;
-    const taskDueAt = task.dueAt ? getStartOfDayUTC(new Date(task.dueAt), userTimezone) : null;
+    const taskDueAt = task.dueAt
+      ? getStartOfDayUTC(new Date(task.dueAt), userTimezone)
+      : null;
 
     // Task is due today or overdue, AND is NOT scheduled for today
     const isDueOrOverdue = taskDueAt && isBefore(taskDueAt, tomorrow); // dueAt is today or before

@@ -32,15 +32,18 @@ docker-compose up --build
 ```
 
 This command will:
+
 - Build the Papa application Docker image
 - Start PostgreSQL database
 - Run database migrations automatically
 - Start the application on http://localhost:3000
 
 **Note:** To seed the database with initial data (default user and project), run:
+
 ```bash
 docker compose exec app npx prisma db seed
 ```
+
 This only needs to be run once on first setup.
 
 ### 3. Access the application
@@ -151,11 +154,11 @@ If port 3000 or 5432 is already in use, you can change them in `docker-compose.y
 services:
   postgres:
     ports:
-      - "5433:5432"  # Change 5432 to 5433 on host
-  
+      - "5433:5432" # Change 5432 to 5433 on host
+
   app:
     ports:
-      - "3001:3000"  # Change 3000 to 3001 on host
+      - "3001:3000" # Change 3000 to 3001 on host
 ```
 
 ### Database connection issues
@@ -163,11 +166,13 @@ services:
 If the app can't connect to the database:
 
 1. Check that PostgreSQL is healthy:
+
    ```bash
    docker-compose ps
    ```
 
 2. Check database logs:
+
    ```bash
    docker-compose logs postgres
    ```
@@ -189,12 +194,12 @@ This removes all volumes (including database data) and rebuilds from scratch.
 
 The Docker setup uses these environment variables:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | Set automatically | PostgreSQL connection string |
-| `OPENAI_API_KEY` | (none) | OpenAI API key for AI features |
-| `NODE_ENV` | `production` | Node environment |
-| `ORIGIN` | `http://localhost:3000` | App origin URL |
+| Variable         | Default                 | Description                    |
+| ---------------- | ----------------------- | ------------------------------ |
+| `DATABASE_URL`   | Set automatically       | PostgreSQL connection string   |
+| `OPENAI_API_KEY` | (none)                  | OpenAI API key for AI features |
+| `NODE_ENV`       | `production`            | Node environment               |
+| `ORIGIN`         | `http://localhost:3000` | App origin URL                 |
 
 ## Data Persistence
 
@@ -209,4 +214,3 @@ docker-compose down -v
 - Check out the main [README.md](./README.md) for application features
 - Review [TIMEZONE.md](./TIMEZONE.md) for timezone handling details
 - See [MENTIONS.md](./MENTIONS.md) for mention parsing features
-
