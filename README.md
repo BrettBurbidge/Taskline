@@ -118,6 +118,17 @@ Papa is a lightweight, single-user task and follow-up system designed to help ma
    
    Navigate to [http://localhost:5173](http://localhost:5173)
 
+### 🐳 Docker Alternative
+
+Want to run everything in Docker? See **[DOCKER.md](./DOCKER.md)** for instructions on running the entire application stack (app + database) in Docker containers.
+
+Quick start:
+```bash
+docker-compose up --build
+```
+
+Then open [http://localhost:3000](http://localhost:3000)
+
 ## Usage
 
 ### Quick Start
