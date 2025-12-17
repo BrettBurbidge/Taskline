@@ -10,6 +10,7 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
+    // env() reads from process.env (set by Docker) or .env file
     url: env("DATABASE_URL"),
   },
 });
