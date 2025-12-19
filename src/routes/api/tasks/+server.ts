@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/db';
+import { dateStringToUTC } from '$lib/utils/timezone';
 import type { RequestHandler } from './$types';
 
 // GET /api/tasks - fetch tasks with optional filters
@@ -57,19 +58,22 @@ export const POST: RequestHandler = async ({ request }) => {
     stakeholderPersonIds = [],
     boardDate,
     priority,
+    timezone,
   } = data;
 
-  // Parse dates consistently - at noon local time to avoid timezone issues
+  // Get timezone for date conversion (fallback to default if not provided)
+  const tz = timezone || process.env.DEFAULT_TIMEZONE || 'America/Denver';
+
+  // Parse dates using timezone utilities for consistency
   let parsedDueAt: Date | null = null;
   if (dueAt) {
     const dateStr = typeof dueAt === 'string' ? dueAt : dueAt.toISOString();
     if (dateStr.includes('T')) {
-      // Already has time component
+      // Already has time component (ISO string)
       parsedDueAt = new Date(dateStr);
     } else {
-      // Date-only string like "2025-12-15"
-      const [year, month, day] = dateStr.split('-').map(Number);
-      parsedDueAt = new Date(year, month - 1, day, 12, 0, 0, 0);
+      // Date-only string like "2025-12-15" - convert from user's timezone to UTC
+      parsedDueAt = dateStringToUTC(dateStr, tz);
     }
   }
 
@@ -77,10 +81,11 @@ export const POST: RequestHandler = async ({ request }) => {
   if (boardDate) {
     const dateStr = typeof boardDate === 'string' ? boardDate : boardDate.toISOString();
     if (dateStr.includes('T')) {
+      // Already has time component
       parsedBoardDate = new Date(dateStr);
     } else {
-      const [year, month, day] = dateStr.split('-').map(Number);
-      parsedBoardDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+      // Date-only string - convert from user's timezone to UTC
+      parsedBoardDate = dateStringToUTC(dateStr, tz);
     }
   }
 

@@ -1,18 +1,19 @@
 import { json } from "@sveltejs/kit";
 import { db } from "$lib/db";
 import { startOfDay, addDays } from "date-fns";
+import { dateStringToUTC, getStartOfDayUTC } from "$lib/utils/timezone";
 import type { RequestHandler } from "./$types";
 
 // POST /api/board/rollover - move incomplete tasks to next day (smart rollover)
 export const POST: RequestHandler = async ({ request }) => {
-  const { fromDate, toDate } = await request.json();
+  const { fromDate, toDate, timezone } = await request.json();
 
-  // Parse dates at noon local time to avoid timezone issues
-  const [fromYear, fromMonth, fromDay] = fromDate.split("-").map(Number);
-  const from = new Date(fromYear, fromMonth - 1, fromDay, 12, 0, 0, 0);
+  // Get timezone for date conversion (fallback to default if not provided)
+  const tz = timezone || process.env.DEFAULT_TIMEZONE || 'America/Denver';
 
-  const [toYear, toMonth, toDay] = toDate.split("-").map(Number);
-  const to = new Date(toYear, toMonth - 1, toDay, 12, 0, 0, 0);
+  // Parse dates using timezone utilities
+  const from = dateStringToUTC(fromDate, tz);
+  const to = dateStringToUTC(toDate, tz);
 
   // Find all incomplete tasks scheduled for fromDate
   const tasksToRollover = await db.task.findMany({
@@ -28,8 +29,8 @@ export const POST: RequestHandler = async ({ request }) => {
 
   // Smart rollover: update each task individually
   let count = 0;
-  const fromDayStart = startOfDay(from);
-  const toDayStart = startOfDay(to);
+  const fromDayStart = getStartOfDayUTC(from, tz);
+  const toDayStart = getStartOfDayUTC(to, tz);
 
   for (const task of tasksToRollover) {
     const updates: any = {
@@ -39,7 +40,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
     // If task has a dueAt that's today or earlier (overdue), move the due date too
     if (task.dueAt) {
-      const taskDueDate = startOfDay(new Date(task.dueAt));
+      const taskDueDate = getStartOfDayUTC(new Date(task.dueAt), tz);
       if (taskDueDate <= fromDayStart) {
         // Task is due today or overdue - move the due date forward too
         updates.dueAt = to;

@@ -51,9 +51,24 @@ export const load: PageServerLoad = async ({ params }) => {
   // Separate tasks scheduled for this day from tasks only due on this day
   const scheduledTasks = tasks
     .filter((task) => {
-      if (!task.boardDate) return false;
-      const taskBoardDate = startOfDay(new Date(task.boardDate));
-      return taskBoardDate.getTime() === targetDate.getTime();
+      const taskBoardDate = task.boardDate
+        ? startOfDay(new Date(task.boardDate))
+        : null;
+      const taskDueAt = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
+
+      // Task is scheduled for this day (has boardDate = targetDate)
+      if (taskBoardDate && taskBoardDate.getTime() === targetDate.getTime()) {
+        return true;
+      }
+
+      // Task is due on this day and doesn't have a boardDate set
+      // Include it in scheduled tasks so it appears in the bottom panel
+      if (!taskBoardDate && taskDueAt) {
+        const isDueThisDay = taskDueAt.getTime() === targetDate.getTime();
+        return isDueThisDay;
+      }
+
+      return false;
     })
     .sort((a, b) => {
       // Sort by sortOrder first (nulls last), then by dueAt, then by createdAt
@@ -80,10 +95,23 @@ export const load: PageServerLoad = async ({ params }) => {
       // Task is due on this day, AND is NOT scheduled for this day
       const isDueThisDay =
         taskDueAt && taskDueAt.getTime() === targetDate.getTime();
-      const notScheduledForThisDay =
-        !taskBoardDate || taskBoardDate.getTime() !== targetDate.getTime();
+      
+      // Exclude if it's scheduled for this day (has boardDate = targetDate)
+      if (taskBoardDate && taskBoardDate.getTime() === targetDate.getTime()) {
+        return false;
+      }
+      
+      // Exclude if it's due on this day and doesn't have boardDate (it will be in scheduledTasks)
+      if (!taskBoardDate && isDueThisDay) {
+        return false;
+      }
 
-      return isDueThisDay && notScheduledForThisDay;
+      // Only show overdue tasks (due before this day) in the due section
+      if (taskDueAt && taskDueAt.getTime() < targetDate.getTime()) {
+        return true;
+      }
+
+      return false;
     })
     .sort((a, b) => {
       // Sort by sortOrder first (nulls last), then by dueAt, then by createdAt

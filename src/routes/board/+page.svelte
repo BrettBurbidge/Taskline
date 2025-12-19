@@ -2,7 +2,7 @@
   import { addDays, format, parseISO } from "date-fns";
   import { invalidateAll } from "$app/navigation";
   import type { PageData } from "./$types";
-  import { formatDateInUserTZ, getTodayString } from "$lib/utils/timezone";
+  import { formatDateInUserTZ, getTodayString, getUserTimezone } from "$lib/utils/timezone";
 
   let { data }: { data: PageData } = $props();
 
@@ -18,7 +18,7 @@
       await fetch(`/api/tasks/${taskId}/reorder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ direction, targetDate }),
+        body: JSON.stringify({ direction, targetDate, timezone: getUserTimezone() }),
       });
       await invalidateAll();
     } catch (err) {
@@ -42,7 +42,7 @@
       await fetch(`/api/tasks/${taskId}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ boardDate }),
+        body: JSON.stringify({ boardDate, timezone: getUserTimezone() }),
       });
       showMoveDatePicker = null;
       await invalidateAll();
@@ -63,6 +63,7 @@
         body: JSON.stringify({
           fromDate: data.todayDate,
           toDate: tomorrow,
+          timezone: getUserTimezone(),
         }),
       });
       await invalidateAll();
@@ -104,7 +105,10 @@
       const response = await fetch("/api/followups/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ boardDate: data.todayDate }),
+        body: JSON.stringify({ 
+          boardDate: data.todayDate,
+          timezone: getUserTimezone()
+        }),
       });
 
       const result = await response.json();

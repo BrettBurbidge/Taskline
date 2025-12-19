@@ -3,6 +3,7 @@
 	import type { PageData } from './$types';
 	import { parseMentions, parseProjects } from '$lib/utils/mentions';
 	import { parseDate, formatParsedDate, formatParsedDateForInput } from '$lib/utils/dateParser';
+	import { getUserTimezone } from '$lib/utils/timezone';
 
 	let { data }: { data: PageData } = $props();
 
@@ -237,7 +238,8 @@
 					accountablePersonId: data.currentUser!.id,
 					executorPersonId: finalExecutorId,
 					stakeholderPersonIds: stakeholderIds.length > 0 ? stakeholderIds : selectedStakeholders,
-					boardDate: new Date().toISOString().split('T')[0]
+					boardDate: new Date().toISOString().split('T')[0],
+					timezone: getUserTimezone()
 				})
 			});
 

@@ -1,6 +1,6 @@
 <div class="min-h-screen flex items-center justify-center">
   <div class="max-w-2xl text-center px-4">
-    <h1 class="text-6xl font-bold text-gray-900 mb-4">Papa</h1>
+    <h1 class="text-6xl font-bold text-gray-900 mb-4">Taskline</h1>
     <p class="text-xl text-gray-600 mb-8">Personal AI Project Assistant</p>
     <p class="text-gray-500 mb-12 max-w-lg mx-auto">
       Manage commitments, delegation, and follow-ups across all your projects

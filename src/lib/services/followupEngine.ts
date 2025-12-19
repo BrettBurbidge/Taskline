@@ -1,5 +1,6 @@
 import { db } from '$lib/db';
 import { addDays, differenceInDays, startOfDay } from 'date-fns';
+import { getStartOfDayUTC } from '$lib/utils/timezone';
 import type { Task } from '@prisma/client';
 
 interface FollowUpSpec {
@@ -15,8 +16,11 @@ interface RuleConfig {
 
 /**
  * Generate follow-ups for a single task
+ * @param taskId - The task ID
+ * @param asOf - The date to generate from (defaults to now)
+ * @param timezone - User's timezone for date calculations
  */
-export async function generateForTask(taskId: string, asOf: Date = new Date()): Promise<void> {
+export async function generateForTask(taskId: string, asOf: Date = new Date(), timezone?: string): Promise<void> {
   const task = await db.task.findUnique({
     where: { id: taskId },
     include: {
@@ -53,7 +57,7 @@ export async function generateForTask(taskId: string, asOf: Date = new Date()): 
     if (!rule.isActive) continue;
 
     const config = rule.configJson as RuleConfig;
-    const specs = computeFollowUpsForRule(task, rule.ruleType, config, asOf);
+    const specs = computeFollowUpsForRule(task, rule.ruleType, config, asOf, timezone);
     followUpSpecs.push(...specs);
   }
 
@@ -73,10 +77,14 @@ export async function generateForTask(taskId: string, asOf: Date = new Date()): 
 
 /**
  * Generate follow-ups for all active tasks (not just tasks on a specific board date)
+ * @param boardDate - The board date (for reference)
+ * @param asOf - The date to generate from (defaults to now)
+ * @param timezone - User's timezone for date calculations
  */
 export async function generateForActiveTasks(
   boardDate: Date,
-  asOf: Date = new Date()
+  asOf: Date = new Date(),
+  timezone?: string
 ): Promise<void> {
   // Get ALL active tasks with due dates (not just tasks scheduled for today)
   const tasks = await db.task.findMany({
@@ -89,18 +97,24 @@ export async function generateForActiveTasks(
   });
 
   for (const task of tasks) {
-    await generateForTask(task.id, asOf);
+    await generateForTask(task.id, asOf, timezone);
   }
 }
 
 /**
  * Compute follow-up instances for a specific rule
+ * @param task - The task
+ * @param ruleType - The rule type
+ * @param config - The rule configuration
+ * @param asOf - The date to compute from
+ * @param timezone - User's timezone for date calculations
  */
 function computeFollowUpsForRule(
   task: Task & { stakeholders?: any[] },
   ruleType: string,
   config: RuleConfig,
-  asOf: Date
+  asOf: Date,
+  timezone?: string
 ): FollowUpSpec[] {
   const specs: FollowUpSpec[] = [];
 
@@ -109,7 +123,9 @@ function computeFollowUpsForRule(
     return specs;
   }
 
-  const daysUntilDue = differenceInDays(new Date(task.dueAt), startOfDay(asOf));
+  // Use timezone-aware start of day
+  const asOfStartOfDay = timezone ? getStartOfDayUTC(asOf, timezone) : startOfDay(asOf);
+  const daysUntilDue = differenceInDays(new Date(task.dueAt), asOfStartOfDay);
   
   // Don't create follow-ups for tasks due today or in the past
   // The task itself is already on the board - no need for a follow-up

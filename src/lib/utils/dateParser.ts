@@ -4,6 +4,7 @@
  */
 
 import { addDays, nextMonday, nextTuesday, nextWednesday, nextThursday, nextFriday, nextSaturday, nextSunday, format, startOfDay } from 'date-fns';
+import { getStartOfDayUTC, getUserTimezone } from './timezone';
 
 export interface ParsedDate {
   date: Date | null;
@@ -13,14 +14,18 @@ export interface ParsedDate {
 
 /**
  * Parse natural language dates from text
+ * @param text - The text to parse
+ * @param timezone - Optional timezone (defaults to user's timezone)
  */
-export function parseDate(text: string): ParsedDate {
+export function parseDate(text: string, timezone?: string): ParsedDate {
   if (!text) {
     return { date: null, matchedText: null, pattern: null };
   }
 
   const lowerText = text.toLowerCase();
-  const today = startOfDay(new Date());
+  // Use timezone-aware "today" if timezone is provided
+  const tz = timezone || (typeof window !== 'undefined' ? getUserTimezone() : undefined);
+  const today = tz ? getStartOfDayUTC(new Date(), tz) : startOfDay(new Date());
 
   // Pattern 1: "tomorrow"
   const tomorrowMatch = lowerText.match(/\btomorrow\b/);

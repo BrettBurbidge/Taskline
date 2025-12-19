@@ -50,13 +50,26 @@ export const load: PageServerLoad = async ({ cookies }) => {
   // Separate overdue/due tasks from scheduled tasks
   const scheduledTasks = tasks
     .filter((task) => {
-      if (!task.boardDate) return false;
-      const taskBoardDate = getStartOfDayUTC(
-        new Date(task.boardDate),
-        userTimezone
-      );
-      // Task is scheduled specifically for today
-      return isEqual(taskBoardDate, today);
+      const taskBoardDate = task.boardDate
+        ? getStartOfDayUTC(new Date(task.boardDate), userTimezone)
+        : null;
+      const taskDueAt = task.dueAt
+        ? getStartOfDayUTC(new Date(task.dueAt), userTimezone)
+        : null;
+
+      // Task is scheduled for today (has boardDate = today)
+      if (taskBoardDate && isEqual(taskBoardDate, today)) {
+        return true;
+      }
+
+      // Task is due today and doesn't have a boardDate set
+      // Include it in scheduled tasks so it appears in the bottom panel
+      if (!taskBoardDate && taskDueAt) {
+        const isDueToday = isEqual(taskDueAt, today);
+        return isDueToday;
+      }
+
+      return false;
     })
     .sort((a, b) => {
       // Sort by sortOrder first (nulls last), then by dueAt, then by createdAt
@@ -84,10 +97,18 @@ export const load: PageServerLoad = async ({ cookies }) => {
 
       // Task is due today or overdue, AND is NOT scheduled for today
       const isDueOrOverdue = taskDueAt && isBefore(taskDueAt, tomorrow); // dueAt is today or before
-      const notScheduledForToday =
-        !taskBoardDate || !isEqual(taskBoardDate, today);
+      
+      // Exclude if it's scheduled for today (has boardDate = today)
+      if (taskBoardDate && isEqual(taskBoardDate, today)) {
+        return false;
+      }
+      
+      // Exclude if it's due today and doesn't have boardDate (it will be in scheduledTasks)
+      if (!taskBoardDate && taskDueAt && isEqual(taskDueAt, today)) {
+        return false;
+      }
 
-      return isDueOrOverdue && notScheduledForToday;
+      return isDueOrOverdue;
     })
     .sort((a, b) => {
       // Sort by sortOrder first (nulls last), then by dueAt, then by createdAt

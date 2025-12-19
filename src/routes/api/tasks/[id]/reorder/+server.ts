@@ -1,10 +1,14 @@
 import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
+import { dateStringToUTC, getStartOfDayUTC } from '$lib/utils/timezone';
 import type { RequestHandler } from './$types';
 
 // POST /api/tasks/:id/reorder - move task up or down
 export const POST: RequestHandler = async ({ params, request }) => {
-  const { direction, targetDate } = await request.json();
+  const { direction, targetDate, timezone } = await request.json();
+
+  // Get timezone for date conversion (fallback to default if not provided)
+  const tz = timezone || process.env.DEFAULT_TIMEZONE || 'America/Denver';
 
   const task = await db.task.findUnique({
     where: { id: params.id },
@@ -21,13 +25,11 @@ export const POST: RequestHandler = async ({ params, request }) => {
   
   if (!targetBoardDate) {
     if (targetDate) {
-      // Parse targetDate (YYYY-MM-DD format)
-      const [year, month, day] = targetDate.split('-').map(Number);
-      targetBoardDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+      // Parse targetDate using timezone utilities
+      targetBoardDate = dateStringToUTC(targetDate, tz);
     } else if (task.dueAt) {
-      // Use dueAt date (at noon to match boardDate format)
-      const dueDate = new Date(task.dueAt);
-      targetBoardDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate(), 12, 0, 0, 0);
+      // Use dueAt date (convert to start of day in user's timezone)
+      targetBoardDate = getStartOfDayUTC(new Date(task.dueAt), tz);
     } else {
       throw error(400, 'Task has no board date, due date, or target date');
     }

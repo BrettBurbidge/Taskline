@@ -2,7 +2,7 @@
   import { addDays, format, parseISO } from "date-fns";
   import { invalidateAll, goto } from "$app/navigation";
   import type { PageData } from "./$types";
-  import { formatDateInUserTZ } from "$lib/utils/timezone";
+  import { formatDateInUserTZ, getUserTimezone } from "$lib/utils/timezone";
 
   let { data }: { data: PageData } = $props();
 
@@ -11,7 +11,7 @@
       await fetch(`/api/tasks/${taskId}/reorder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ direction, targetDate }),
+        body: JSON.stringify({ direction, targetDate, timezone: getUserTimezone() }),
       });
       await invalidateAll();
     } catch (err) {
