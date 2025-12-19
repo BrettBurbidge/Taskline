@@ -25,12 +25,29 @@ export const load: PageServerLoad = async ({ params }) => {
       contextNotes: {
         orderBy: { createdAt: 'desc' },
       },
+      activities: {
+        orderBy: { createdAt: 'asc' },
+      },
     },
   });
 
   if (!task) {
     throw error(404, 'Task not found');
   }
+
+  // Also fetch completed follow-ups for timeline
+  const completedFollowUps = await db.followUp.findMany({
+    where: {
+      taskId: params.id,
+      status: 'completed',
+    },
+    include: {
+      targetPerson: true,
+    },
+    orderBy: {
+      completedAt: 'asc',
+    },
+  });
 
   // Fetch available people and projects for editing
   const [people, projects] = await Promise.all([
@@ -47,6 +64,7 @@ export const load: PageServerLoad = async ({ params }) => {
     task,
     people,
     projects,
+    completedFollowUps,
   };
 };
 

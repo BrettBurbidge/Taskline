@@ -20,6 +20,25 @@ export const POST: RequestHandler = async ({ params, request }) => {
     },
   });
 
+  // Create activity entry for timeline
+  const activityDescription = notes
+    ? `Follow-up completed${followUp.targetPerson ? ` with ${followUp.targetPerson.displayName}` : ''}: ${notes}`
+    : `Follow-up completed${followUp.targetPerson ? ` with ${followUp.targetPerson.displayName}` : ''}`;
+
+  await db.taskActivity.create({
+    data: {
+      taskId: followUp.taskId,
+      activityType: 'followup_completed',
+      description: activityDescription,
+      note: notes || null,
+      metadata: {
+        followUpId: followUp.id,
+        followUpType: followUp.followUpType,
+        targetPersonId: followUp.targetPersonId,
+      }
+    }
+  });
+
   return json(followUp);
 };
 

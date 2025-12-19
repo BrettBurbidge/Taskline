@@ -12,6 +12,9 @@
   let generatingFollowUps = $state(false);
   let showFollowUpInfoModal = $state(false);
   let followUpInfoMessage = $state("");
+  let showFollowUpNoteModal = $state(false);
+  let currentFollowUpId = $state<string | null>(null);
+  let followUpNote = $state("");
 
   async function reorderTask(taskId: string, direction: "up" | "down", targetDate?: string) {
     try {
@@ -74,15 +77,45 @@
     }
   }
 
-  async function completeFollowUp(followUpId: string) {
+  function promptFollowUpNote(followUpId: string) {
+    currentFollowUpId = followUpId;
+    followUpNote = "";
+    showFollowUpNoteModal = true;
+  }
+
+  async function completeFollowUp() {
+    if (!currentFollowUpId) return;
+
     try {
-      await fetch(`/api/followups/${followUpId}/complete`, {
+      await fetch(`/api/followups/${currentFollowUpId}/complete`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: followUpNote.trim() || null }),
       });
+      showFollowUpNoteModal = false;
+      currentFollowUpId = null;
+      followUpNote = "";
       await invalidateAll();
     } catch (err) {
       console.error("Failed to complete follow-up:", err);
     }
+  }
+
+  function skipFollowUpNote() {
+    if (!currentFollowUpId) return;
+    
+    fetch(`/api/followups/${currentFollowUpId}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: null }),
+    }).then(() => {
+      showFollowUpNoteModal = false;
+      currentFollowUpId = null;
+      followUpNote = "";
+      invalidateAll();
+    }).catch((err) => {
+      console.error("Failed to complete follow-up:", err);
+    });
   }
 
   async function snoozeFollowUp(followUpId: string, days: number) {
@@ -501,7 +534,7 @@
                   </div>
                   <div class="flex gap-2 mt-2">
                     <button
-                      onclick={() => completeFollowUp(followUp.id)}
+                      onclick={() => promptFollowUpNote(followUp.id)}
                       class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
                     >
                       Done
@@ -662,3 +695,51 @@
     </div>
   {/if}
 </div>
+
+<!-- Follow-up Note Modal -->
+{#if showFollowUpNoteModal}
+  <div
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) {
+        showFollowUpNoteModal = false;
+      }
+    }}
+  >
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <h2 class="text-xl font-bold text-gray-900 mb-4">
+        📝 Follow-up Complete
+      </h2>
+      <p class="text-sm text-gray-600 mb-4">
+        Add a quick note about what happened (optional but recommended for building your task story):
+      </p>
+      <textarea
+        bind:value={followUpNote}
+        placeholder="e.g., 'Discussed timeline with client, agreed on 2-week extension' or 'No response yet, will follow up again'"
+        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+        rows="4"
+        autofocus
+      ></textarea>
+      <div class="flex gap-2 mt-4">
+        <button
+          onclick={completeFollowUp}
+          class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+        >
+          {followUpNote.trim() ? "Save & Complete" : "Complete"}
+        </button>
+        <button
+          onclick={skipFollowUpNote}
+          class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          Skip Note
+        </button>
+        <button
+          onclick={() => (showFollowUpNoteModal = false)}
+          class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

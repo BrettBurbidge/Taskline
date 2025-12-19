@@ -13,19 +13,19 @@ datasource db {
 // PERSON
 // ============================================================================
 model Person {
-  id           String   @id @default(uuid())
-  handle       String   @unique // e.g., "brett", "steen"
-  displayName  String   @map("display_name")
-  email        String?
-  source       String   @default("manual") // "manual", "import"
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  handle      String   @unique // e.g., "brett", "steen"
+  displayName String   @map("display_name")
+  email       String?
+  source      String   @default("manual") // "manual", "import"
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  accountableTasks Task[]       @relation("AccountablePerson")
-  executorTasks    Task[]       @relation("ExecutorPerson")
-  stakeholderOn    Stakeholder[]
-  followUpsTargeting FollowUp[] @relation("FollowUpTargetPerson")
+  accountableTasks   Task[]        @relation("AccountablePerson")
+  executorTasks      Task[]        @relation("ExecutorPerson")
+  stakeholderOn      Stakeholder[]
+  followUpsTargeting FollowUp[]    @relation("FollowUpTargetPerson")
 
   @@map("person")
 }
@@ -43,7 +43,7 @@ model Project {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  tasks       Task[]
+  tasks        Task[]
   contextNotes ContextNote[]
 
   @@map("project")
@@ -53,32 +53,33 @@ model Project {
 // TASK
 // ============================================================================
 model Task {
-  id                String    @id @default(uuid())
-  title             String
-  description       String?
-  status            String    @default("not_started") // not_started, in_progress, waiting, completed, cancelled
-  priority          String?   // optional
-  dueAt             DateTime? @map("due_at")
-  boardDate         DateTime? @map("board_date") @db.Date
-  sortOrder         Int?      @map("sort_order")
-  completedAt       DateTime? @map("completed_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  status      String    @default("not_started") // not_started, in_progress, waiting, completed, cancelled
+  priority    String? // optional
+  dueAt       DateTime? @map("due_at")
+  boardDate   DateTime? @map("board_date") @db.Date
+  sortOrder   Int?      @map("sort_order")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Foreign Keys
-  projectId         String?   @map("project_id")
+  projectId           String? @map("project_id")
   accountablePersonId String  @map("accountable_person_id")
-  executorPersonId  String?   @map("executor_person_id")
+  executorPersonId    String? @map("executor_person_id")
 
   // Relations
-  project           Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  accountablePerson Person    @relation("AccountablePerson", fields: [accountablePersonId], references: [id])
-  executorPerson    Person?   @relation("ExecutorPerson", fields: [executorPersonId], references: [id])
-  
-  stakeholders      Stakeholder[]
-  followUpRules     FollowUpRule[]
-  followUps         FollowUp[]
-  contextNotes      ContextNote[]
+  project           Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  accountablePerson Person   @relation("AccountablePerson", fields: [accountablePersonId], references: [id])
+  executorPerson    Person?  @relation("ExecutorPerson", fields: [executorPersonId], references: [id])
+
+  stakeholders  Stakeholder[]
+  followUpRules FollowUpRule[]
+  followUps     FollowUp[]
+  contextNotes  ContextNote[]
+  activities    TaskActivity[]
 
   @@index([boardDate, sortOrder])
   @@index([dueAt])
@@ -93,12 +94,12 @@ model Stakeholder {
   id        String   @id @default(uuid())
   taskId    String   @map("task_id")
   personId  String   @map("person_id")
-  role      String?  // optional description
+  role      String? // optional description
   createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, personId])
   @@map("stakeholder")
@@ -117,7 +118,7 @@ model FollowUpRule {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   // Relations
-  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@map("followup_rule")
 }
@@ -139,8 +140,8 @@ model FollowUp {
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  task           Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  targetPerson   Person?   @relation("FollowUpTargetPerson", fields: [targetPersonId], references: [id], onDelete: SetNull)
+  task         Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  targetPerson Person? @relation("FollowUpTargetPerson", fields: [targetPersonId], references: [id], onDelete: SetNull)
 
   @@index([dueAt, status])
   @@index([taskId])
@@ -160,8 +161,27 @@ model ContextNote {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("context_note")
+}
+
+// ============================================================================
+// TASK ACTIVITY (For timeline/story building)
+// ============================================================================
+model TaskActivity {
+  id           String   @id @default(uuid())
+  taskId       String   @map("task_id")
+  activityType String   @map("activity_type") // created, status_changed, due_date_changed, completed, followup_completed, note_added
+  description  String // Human-readable description
+  metadata     Json? // Store additional data (before/after values, etc.)
+  note         String? // Optional user note
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("task_activity")
 }

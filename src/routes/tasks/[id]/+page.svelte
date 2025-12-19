@@ -29,6 +29,16 @@
 
   let newNote = $state("");
   let showDeleteConfirm = $state(false);
+  let showTimeline = $state(false);
+  let showFollowUpNoteModal = $state(false);
+  let currentFollowUpId = $state<string | null>(null);
+  let followUpNote = $state("");
+  let showAddFollowUpModal = $state(false);
+  let newFollowUpType = $state("self_accountability");
+  let newFollowUpTargetPersonId = $state("");
+  let newFollowUpDueDate = $state("");
+  let completeImmediately = $state(false);
+  let newFollowUpNote = $state("");
 
   // Update formData when data changes (after save/reload)
   $effect(() => {
@@ -46,7 +56,9 @@
 
   function toggleStakeholder(personId: string) {
     if (selectedStakeholders.includes(personId)) {
-      selectedStakeholders = selectedStakeholders.filter((id) => id !== personId);
+      selectedStakeholders = selectedStakeholders.filter(
+        (id) => id !== personId
+      );
     } else {
       selectedStakeholders = [...selectedStakeholders, personId];
     }
@@ -90,11 +102,82 @@
     goto("/board");
   }
 
-  async function completeFollowUp(followUpId: string) {
-    await fetch(`/api/followups/${followUpId}/complete`, {
+  function promptFollowUpNote(followUpId: string) {
+    currentFollowUpId = followUpId;
+    followUpNote = "";
+    showFollowUpNoteModal = true;
+  }
+
+  async function completeFollowUp() {
+    if (!currentFollowUpId) return;
+
+    try {
+      await fetch(`/api/followups/${currentFollowUpId}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: followUpNote.trim() || null }),
+      });
+      showFollowUpNoteModal = false;
+      currentFollowUpId = null;
+      followUpNote = "";
+      await invalidateAll();
+    } catch (err) {
+      console.error("Failed to complete follow-up:", err);
+    }
+  }
+
+  function skipFollowUpNote() {
+    if (!currentFollowUpId) return;
+
+    fetch(`/api/followups/${currentFollowUpId}/complete`, {
       method: "POST",
-    });
-    await invalidateAll();
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: null }),
+    })
+      .then(() => {
+        showFollowUpNoteModal = false;
+        currentFollowUpId = null;
+        followUpNote = "";
+        invalidateAll();
+      })
+      .catch((err) => {
+        console.error("Failed to complete follow-up:", err);
+      });
+  }
+
+  async function createFollowUp() {
+    try {
+      // Create the follow-up
+      const response = await fetch("/api/followups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: data.task.id,
+          followUpType: newFollowUpType,
+          targetPersonId: newFollowUpTargetPersonId || null,
+          dueAt: newFollowUpDueDate,
+        }),
+      });
+
+      const followUp = await response.json();
+
+      // If "complete immediately" is checked, complete it right away
+      if (completeImmediately) {
+        await fetch(`/api/followups/${followUp.id}/complete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: newFollowUpNote.trim() || null }),
+        });
+      }
+
+      showAddFollowUpModal = false;
+      completeImmediately = false;
+      newFollowUpNote = "";
+      await invalidateAll();
+    } catch (err) {
+      console.error("Failed to create follow-up:", err);
+      alert("Failed to create follow-up");
+    }
   }
 
   async function snoozeFollowUp(followUpId: string, days: number) {
@@ -109,6 +192,94 @@
       }),
     });
     await invalidateAll();
+  }
+
+  async function deleteFollowUp(followUpId: string) {
+    if (!confirm("Are you sure you want to delete this follow-up?")) {
+      return;
+    }
+
+    try {
+      await fetch(`/api/followups/${followUpId}`, {
+        method: "DELETE",
+      });
+      await invalidateAll();
+    } catch (err) {
+      console.error("Failed to delete follow-up:", err);
+      alert("Failed to delete follow-up");
+    }
+  }
+
+  function exportTimeline() {
+    // Build timeline events
+    const events = [
+      {
+        timestamp: data.task.createdAt,
+        type: "Task Created",
+        description: `Created by @${data.task.accountablePerson.handle}${data.task.project ? ` in #${data.task.project.name}` : ""}`,
+      },
+      ...(data.task.activities || []).map((activity: any) => ({
+        timestamp: activity.createdAt,
+        type: activity.activityType
+          .split("_")
+          .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" "),
+        description: activity.description,
+        note: activity.note,
+      })),
+    ];
+
+    if (data.task.status === "completed" && data.task.completedAt) {
+      events.push({
+        timestamp: data.task.completedAt,
+        type: "Task Completed",
+        description: "Task successfully completed!",
+      });
+    }
+
+    // Sort by timestamp
+    events.sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+    // Build markdown
+    let markdown = `# Task Story: ${data.task.title}\n\n`;
+    markdown += `**Project:** ${data.task.project?.name || "None"}\n`;
+    markdown += `**Accountable:** @${data.task.accountablePerson.handle}\n`;
+    if (data.task.executorPerson) {
+      markdown += `**Executor:** @${data.task.executorPerson.handle}\n`;
+    }
+    markdown += `**Status:** ${data.task.status}\n`;
+    if (data.task.dueAt) {
+      markdown += `**Due:** ${formatDateInUserTZ(data.task.dueAt, "MMM d, yyyy")}\n`;
+    }
+    markdown += `\n---\n\n## Timeline\n\n`;
+
+    events.forEach((event: any) => {
+      const formattedDate = formatDateTimeInUserTZ(
+        event.timestamp,
+        "MMM d, yyyy 'at' h:mm a"
+      );
+      markdown += `### ${event.type}\n`;
+      markdown += `*${formattedDate}*\n\n`;
+      markdown += `${event.description}\n`;
+      if (event.note) {
+        markdown += `\n> **Note:** ${event.note}\n`;
+      }
+      markdown += `\n`;
+    });
+
+    // Download as file
+    const blob = new Blob([markdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `task-story-${data.task.id}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 </script>
 
@@ -127,6 +298,14 @@
           {isEditing ? "Edit Task" : data.task.title}
         </h1>
         <div class="flex gap-2">
+          <button
+            onclick={() => (showTimeline = !showTimeline)}
+            class="px-4 py-2 {showTimeline
+              ? 'bg-purple-600 text-white'
+              : 'bg-gray-100 text-gray-700'} rounded-lg hover:bg-purple-700 hover:text-white transition-colors"
+          >
+            {showTimeline ? "📝 Details" : "📖 Timeline"}
+          </button>
           {#if !isEditing}
             <button
               onclick={() => (isEditing = true)}
@@ -145,6 +324,166 @@
           {/if}
         </div>
       </div>
+
+      <!-- Follow-up Note Modal -->
+      {#if showFollowUpNoteModal}
+        <div
+          class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onclick={(e) => {
+            if (e.target === e.currentTarget) {
+              showFollowUpNoteModal = false;
+            }
+          }}
+        >
+          <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">
+              📝 Follow-up Complete
+            </h2>
+            <p class="text-sm text-gray-600 mb-4">
+              Add a quick note about what happened (optional but recommended for
+              building your task story):
+            </p>
+            <textarea
+              bind:value={followUpNote}
+              placeholder="e.g., 'Made progress on implementation, will check in again tomorrow' or 'Blocked waiting for client response'"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              rows="4"
+              autofocus
+            ></textarea>
+            <div class="flex gap-2 mt-4">
+              <button
+                onclick={completeFollowUp}
+                class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                {followUpNote.trim() ? "Save & Complete" : "Complete"}
+              </button>
+              <button
+                onclick={skipFollowUpNote}
+                class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Skip Note
+              </button>
+              <button
+                onclick={() => (showFollowUpNoteModal = false)}
+                class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Add Follow Up Modal -->
+      {#if showAddFollowUpModal}
+        <div
+          class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onclick={(e) => {
+            if (e.target === e.currentTarget) {
+              showAddFollowUpModal = false;
+            }
+          }}
+        >
+          <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-4">
+              ➕ Add Follow Up
+            </h2>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Type
+                </label>
+                <select
+                  bind:value={newFollowUpType}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="self_accountability"
+                    >Self Accountability</option
+                  >
+                  <option value="executor_checkin">Executor Check-in</option>
+                  <option value="stakeholder_update">Stakeholder Update</option>
+                </select>
+              </div>
+
+              {#if newFollowUpType !== "self_accountability"}
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Target Person
+                  </label>
+                  <select
+                    bind:value={newFollowUpTargetPersonId}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select person...</option>
+                    {#each data.people as person}
+                      <option value={person.id}>{person.displayName}</option>
+                    {/each}
+                  </select>
+                </div>
+              {/if}
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  bind:value={newFollowUpDueDate}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <!-- Complete immediately option -->
+              <div class="border-t border-gray-200 pt-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    bind:checked={completeImmediately}
+                    class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span class="text-sm font-medium text-gray-700">
+                    Complete immediately with note
+                  </span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1 ml-6">
+                  Check this to create and complete the follow-up in one step
+                </p>
+              </div>
+
+              {#if completeImmediately}
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Note (optional)
+                  </label>
+                  <textarea
+                    bind:value={newFollowUpNote}
+                    placeholder="e.g., 'Called and left voicemail' or 'Sent email with update'"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    rows="3"
+                  ></textarea>
+                </div>
+              {/if}
+            </div>
+
+            <div class="flex gap-2 mt-6">
+              <button
+                onclick={createFollowUp}
+                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                disabled={newFollowUpType !== "self_accountability" &&
+                  !newFollowUpTargetPersonId}
+              >
+                {completeImmediately ? "Create & Complete" : "Create Follow Up"}
+              </button>
+              <button
+                onclick={() => (showAddFollowUpModal = false)}
+                class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      {/if}
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -303,7 +642,7 @@
                   <input
                     type="hidden"
                     name="stakeholderPersonIds"
-                    value={selectedStakeholders.join(',')}
+                    value={selectedStakeholders.join(",")}
                   />
                 </div>
 
@@ -470,10 +809,20 @@
           >
             <h2 class="text-lg font-semibold text-gray-900">Follow-ups</h2>
             <button
-              onclick={generateFollowUps}
-              class="text-sm text-blue-600 hover:text-blue-700"
+              onclick={() => {
+                showAddFollowUpModal = true;
+                newFollowUpType = "self_accountability";
+                newFollowUpTargetPersonId = "";
+                completeImmediately = false;
+                newFollowUpNote = "";
+                // Default to tomorrow
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                newFollowUpDueDate = tomorrow.toISOString().split("T")[0];
+              }}
+              class="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              Regenerate
+              + Add Follow Up
             </button>
           </div>
 
@@ -509,7 +858,7 @@
                     {#if followUp.status === "pending"}
                       <div class="flex gap-2">
                         <button
-                          onclick={() => completeFollowUp(followUp.id)}
+                          onclick={() => promptFollowUpNote(followUp.id)}
                           class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
                         >
                           Done
@@ -519,6 +868,13 @@
                           class="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
                         >
                           +1d
+                        </button>
+                        <button
+                          onclick={() => deleteFollowUp(followUp.id)}
+                          class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                          title="Delete follow-up"
+                        >
+                          Delete
                         </button>
                         <button
                           onclick={() => snoozeFollowUp(followUp.id, 3)}
@@ -598,5 +954,131 @@
         </div>
       </div>
     </div>
+
+    <!-- Timeline View -->
+    {#if showTimeline}
+      <div class="bg-white rounded-lg shadow p-6 mt-6">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold text-gray-900">📖 Task Story</h2>
+          <button
+            onclick={exportTimeline}
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+          >
+            📄 Export Timeline
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <!-- Task Created -->
+          <div class="flex gap-4">
+            <div
+              class="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center"
+            >
+              <span class="text-xl">🎯</span>
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-semibold text-gray-900">Task Created</span>
+                <span class="text-xs text-gray-500">
+                  {formatDateTimeInUserTZ(
+                    data.task.createdAt,
+                    "MMM d, yyyy 'at' h:mm a"
+                  )}
+                </span>
+              </div>
+              <p class="text-sm text-gray-600">
+                Created by @{data.task.accountablePerson.handle}
+                {#if data.task.project}
+                  in #{data.task.project.name}
+                {/if}
+              </p>
+            </div>
+          </div>
+
+          <!-- Activities (sorted chronologically) -->
+          {#each (data.task.activities || []).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) as timelineEvent}
+            <div class="flex gap-4">
+              <div
+                class="flex-shrink-0 w-12 h-12 bg-green-100 rounded-full flex items-center justify-center"
+              >
+                <span class="text-xl">
+                  {#if timelineEvent.activityType === "followup_completed"}
+                    ✅
+                  {:else if timelineEvent.activityType === "status_changed"}
+                    🔄
+                  {:else if timelineEvent.activityType === "completed"}
+                    🎉
+                  {:else}
+                    📝
+                  {/if}
+                </span>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-semibold text-gray-900">
+                    {timelineEvent.activityType
+                      .split("_")
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                      .join(" ")}
+                  </span>
+                  <span class="text-xs text-gray-500">
+                    {formatDateTimeInUserTZ(
+                      timelineEvent.createdAt,
+                      "MMM d, yyyy 'at' h:mm a"
+                    )}
+                  </span>
+                </div>
+                <p class="text-sm text-gray-700">
+                  {timelineEvent.description}
+                </p>
+                {#if timelineEvent.note}
+                  <div
+                    class="mt-2 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded"
+                  >
+                    <p class="text-sm text-gray-700 italic">
+                      "{timelineEvent.note}"
+                    </p>
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/each}
+
+          <!-- Task Completed (if completed) -->
+          {#if data.task.status === "completed" && data.task.completedAt}
+            <div class="flex gap-4">
+              <div
+                class="flex-shrink-0 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center"
+              >
+                <span class="text-xl">🎉</span>
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-semibold text-gray-900">Task Completed</span
+                  >
+                  <span class="text-xs text-gray-500">
+                    {formatDateTimeInUserTZ(
+                      data.task.completedAt,
+                      "MMM d, yyyy 'at' h:mm a"
+                    )}
+                  </span>
+                </div>
+                <p class="text-sm text-gray-600">
+                  Task successfully completed!
+                </p>
+              </div>
+            </div>
+          {/if}
+
+          {#if (data.task.activities?.length || 0) === 0}
+            <div class="text-center py-8 text-gray-500">
+              <p class="text-sm">
+                No activity yet. Complete follow-ups to build your task story!
+              </p>
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
   </div>
 </div>
