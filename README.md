@@ -1,22 +1,25 @@
-# Papa - Personal AI Project Assistant
+# Taskline - Personal AI Project Assistant
 
-Papa is a lightweight, single-user task and follow-up system designed to help manage commitments, delegation, and ongoing communication across many concurrent projects, meetings, and conversations. The product focuses on accountability, follow-up, and daily execution, rather than traditional project management.
+Taskline is a lightweight, single-user task and follow-up system designed to help manage commitments, delegation, and ongoing communication across many concurrent projects, meetings, and conversations. The product focuses on accountability, follow-up, and daily execution, rather than traditional project management.
 
 ## Features
 
 ### ✅ Core Task Management
+
 - **Quick Task Capture**: Add tasks quickly via the Inbox with minimal friction
 - **Task Organization**: Group tasks by projects, assign executors, and add stakeholders
 - **Flexible Scheduling**: Board dates for daily planning + due dates for deadlines
 - **Task Status Tracking**: not_started, in_progress, waiting, completed, cancelled
 
 ### 📋 Daily Board
+
 - **Today's Focus**: See all tasks scheduled for today
 - **Reordering**: Move tasks up/down to prioritize your day
 - **Quick Actions**: Complete tasks, move to another date, or rollover to tomorrow
 - **Follow-up Visibility**: See all follow-ups due today in the sidebar
 
 ### 🔔 Smart Follow-Ups
+
 - **Automatic Generation**: Follow-ups are created based on task due dates and cadence rules
 - **Three Types**:
   - **Self Accountability**: Remind yourself to check on your own tasks
@@ -26,16 +29,19 @@ Papa is a lightweight, single-user task and follow-up system designed to help ma
 - **Snooze & Complete**: Manage follow-ups with flexible controls
 
 ### 📅 Week View
+
 - **7-Day Calendar**: Visual overview of the week ahead
 - **Overdue Visibility**: See overdue tasks at the top
 - **Color-Coded Status**: Quick visual status indicators
 
 ### 📁 Project Management
+
 - **Project Grouping**: Organize tasks under projects
 - **Project Dashboard**: See all tasks and progress for each project
 - **Context Notes**: Add notes and context to projects (coming soon)
 
 ### 👥 Smart People Management
+
 - **@Mention Parsing**: Automatically detect and assign people using natural syntax:
   - `@gwenith` and `@suzan` → stakeholders
   - `→ @jeff` or `assign to @jeff` → executor
@@ -45,6 +51,7 @@ Papa is a lightweight, single-user task and follow-up system designed to help ma
 - **People Directory**: View all contacts with usage stats (tasks, roles)
 
 ### ✨ AI Assistance (Optional)
+
 - **Task Parsing**: AI can parse free-text input and suggest:
   - Task title and description
   - Due dates
@@ -76,46 +83,53 @@ Papa is a lightweight, single-user task and follow-up system designed to help ma
 1. **Clone the repository** (or you're already here!)
 
 2. **Install dependencies:**
+
    ```bash
    npm install
    ```
 
 3. **Start PostgreSQL:**
+
    ```bash
    docker compose up -d
    ```
 
 4. **Set up environment variables:**
-   
+
    Create a `.env` file in the root:
+
    ```env
    DATABASE_URL="postgresql://papa:papa_dev_password@localhost:5432/papa_db?schema=public"
-   
+
    # Optional: For AI features
    OPENAI_API_KEY="your-openai-api-key"
    ```
 
 5. **Run database migrations:**
+
    ```bash
    npx prisma migrate dev
    ```
 
 6. **Seed the database:**
+
    ```bash
    npx prisma db seed
    ```
-   
+
    This creates:
+
    - A default user: Brett (@brett)
    - A sample project: Papa Development
 
 7. **Start the development server:**
+
    ```bash
    npm run dev
    ```
 
 8. **Open the app:**
-   
+
    Navigate to [http://localhost:5173](http://localhost:5173)
 
 ### 🐳 Docker Alternative
@@ -123,6 +137,7 @@ Papa is a lightweight, single-user task and follow-up system designed to help ma
 Want to run everything in Docker? See **[DOCKER.md](./DOCKER.md)** for instructions on running the entire application stack (app + database) in Docker containers.
 
 Quick start:
+
 ```bash
 docker-compose up --build
 ```
@@ -134,12 +149,14 @@ Then open [http://localhost:3000](http://localhost:3000)
 ### Quick Start
 
 1. **Add Your First Task**
+
    - Click "Inbox" in the nav
    - Type a task title (e.g., "Call John about Q4 budget")
    - Press Enter or click "Create Task"
    - The task appears on your Daily Board
 
 2. **Manage Your Day**
+
    - Go to "Daily Board"
    - Reorder tasks with ↑↓ buttons
    - Complete tasks with the ✓ button
@@ -147,16 +164,19 @@ Then open [http://localhost:3000](http://localhost:3000)
    - At end of day, click "Rollover to Tomorrow" to move incomplete tasks
 
 3. **Generate Follow-Ups**
+
    - On the Daily Board, click "🔔 Generate Follow-ups"
    - Follow-ups appear in the sidebar based on your task due dates
    - Complete or snooze them as you go
 
 4. **View Your Week**
+
    - Click "Week View" to see the next 7 days
    - Tasks are organized by due date
    - Overdue tasks highlighted at top
 
 5. **Organize with Projects**
+
    - Go to "Projects"
    - Create a new project
    - When adding tasks, assign them to a project
@@ -174,6 +194,7 @@ Then open [http://localhost:3000](http://localhost:3000)
 If you've set an `OPENAI_API_KEY`:
 
 1. **AI Task Parsing**
+
    - In the Inbox, type a natural description like:
      > "Set up meeting with @steen about website redesign by next Friday, need to keep @john updated"
    - Click "✨ AI Assist"
@@ -226,6 +247,37 @@ npx prisma migrate dev --name <migration-name>
 npx prisma generate
 ```
 
+### Development Workflow
+
+This project follows a feature-branch workflow with Docker deployment:
+
+1. **Create and checkout a new branch per feature:**
+
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Test locally during development:**
+
+   ```bash
+   npm run dev
+   ```
+
+3. **Merge back into main:**
+
+   ```bash
+   git checkout main
+   git merge feature/your-feature-name
+   ```
+
+4. **Rebuild and deploy with Docker:**
+   ```bash
+   docker compose down
+   docker compose up --build -d
+   ```
+
+This ensures each feature is isolated during development and the production environment is rebuilt with the latest changes after merging.
+
 ### Project Structure
 
 ```
@@ -259,6 +311,7 @@ prisma/
 ## Roadmap / Future Enhancements
 
 ### v1 Complete ✅
+
 - [x] Core task CRUD
 - [x] Daily Board with reordering and rollover
 - [x] Follow-up engine with automatic generation
@@ -266,6 +319,7 @@ prisma/
 - [x] AI assistance for task parsing (optional)
 
 ### v2 Ideas
+
 - [ ] Task detail modal/page
 - [ ] Advanced filtering and search
 - [ ] Context notes UI (add/edit)
@@ -288,11 +342,12 @@ MIT License - feel free to use this for your own projects!
 
 ## Credits
 
-Built by Brett Burbidge based on the Papa PRD specification.
+Built by Brett Burbidge based on the Taskline PRD specification.
 
 Powered by:
+
 - SvelteKit
 - Prisma
-- PostgreSQL  
+- PostgreSQL
 - Tailwind CSS
 - OpenAI (optional)
