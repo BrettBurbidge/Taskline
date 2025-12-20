@@ -15,22 +15,30 @@ export const load: PageServerLoad = async ({ params }) => {
   const nextDay = addDays(targetDate, 1);
 
   // Fetch all tasks relevant to this specific day:
-  // - Tasks with boardDate = targetDate (scheduled to work on this day)
-  // - Tasks with dueAt on or before targetDate (due or overdue)
+  // - Active tasks: with boardDate = targetDate OR dueAt on/before targetDate
+  // - Completed tasks: ONLY if dueAt is on this specific day
   const tasks = await db.task.findMany({
     where: {
       OR: [
-        // Tasks scheduled for this day
+        // Active tasks scheduled for this day
         {
           boardDate: targetDate,
           status: { in: ["not_started", "in_progress", "waiting"] },
         },
-        // Tasks due on or before this day
+        // Active tasks due on or before this day
         {
           dueAt: {
             lte: nextDay,
           },
           status: { in: ["not_started", "in_progress", "waiting"] },
+        },
+        // Completed tasks ONLY if due on this specific day
+        {
+          dueAt: {
+            gte: targetDate,
+            lt: nextDay,
+          },
+          status: "completed",
         },
       ],
     },

@@ -15,22 +15,30 @@ export const load: PageServerLoad = async ({ cookies }) => {
   const tomorrow = addDays(today, 1);
 
   // Fetch all tasks relevant to today:
-  // - Tasks with boardDate = today (scheduled to work on today)
-  // - Tasks with dueAt on or before today (due or overdue)
+  // - Active tasks: with boardDate = today OR dueAt on/before today
+  // - Completed tasks: ONLY if dueAt is today
   const tasks = await db.task.findMany({
     where: {
       OR: [
-        // Tasks scheduled for today
+        // Active tasks scheduled for today
         {
           boardDate: today,
           status: { in: ["not_started", "in_progress", "waiting"] },
         },
-        // Tasks due today or overdue
+        // Active tasks due today or overdue
         {
           dueAt: {
             lt: tomorrow, // Due today or earlier
           },
           status: { in: ["not_started", "in_progress", "waiting"] },
+        },
+        // Completed tasks ONLY if due today
+        {
+          dueAt: {
+            gte: today,
+            lt: tomorrow,
+          },
+          status: "completed",
         },
       ],
     },

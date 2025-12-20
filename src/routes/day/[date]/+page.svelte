@@ -218,13 +218,13 @@
           {:else}
             <div class="divide-y divide-gray-200">
               {#each data.dayTasks as task, index}
-                <div class="p-4 hover:bg-gray-50 transition-colors">
+                <div class="p-4 hover:bg-gray-50 transition-colors {task.status === 'completed' ? 'opacity-75' : ''}">
                   <div class="flex items-start gap-4">
                     <!-- Reorder Controls -->
                     <div class="flex flex-col gap-1 pt-1">
                       <button
                         onclick={() => reorderTask(task.id, "up", data.targetDate)}
-                        disabled={index === 0}
+                        disabled={index === 0 || task.status === 'completed'}
                         class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Move up"
                       >
@@ -232,7 +232,7 @@
                       </button>
                       <button
                         onclick={() => reorderTask(task.id, "down", data.targetDate)}
-                        disabled={index === data.dayTasks.length - 1}
+                        disabled={index === data.dayTasks.length - 1 || task.status === 'completed'}
                         class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Move down"
                       >
@@ -244,7 +244,7 @@
                     <div class="flex-1 min-w-0">
                       <div class="flex items-start justify-between gap-4">
                         <div class="flex-1">
-                          <h3 class="font-medium text-gray-900">
+                          <h3 class="font-medium text-gray-900 {task.status === 'completed' ? 'line-through' : ''}">
                             <a
                               href="/tasks/{task.id}"
                               class="hover:text-blue-600 hover:underline transition-colors"
@@ -291,12 +291,14 @@
                     </div>
 
                     <div class="flex flex-col gap-2">
-                      <button
-                        onclick={() => completeTask(task.id)}
-                        class="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
-                      >
-                        ✓ Complete
-                      </button>
+                      {#if task.status !== 'completed'}
+                        <button
+                          onclick={() => completeTask(task.id)}
+                          class="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+                        >
+                          ✓ Complete
+                        </button>
+                      {/if}
                       <a
                         href="/tasks/{task.id}"
                         class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-center"
