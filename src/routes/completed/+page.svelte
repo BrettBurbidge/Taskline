@@ -34,9 +34,9 @@
   <div class="max-w-6xl mx-auto">
     <!-- Header -->
     <div class="mb-6">
-      <h1 class="text-3xl font-bold text-gray-900 mb-2">✅ Completed Tasks</h1>
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">✅ Completed</h1>
       <p class="text-gray-600">
-        Your accomplishments and task history
+        Your accomplishments, task history, and closed projects
       </p>
     </div>
 
@@ -114,6 +114,45 @@
         {/if}
       </div>
     </div>
+
+    <!-- Closed Projects -->
+    {#if data.closedProjects.length > 0}
+      <div class="mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">📦 Closed Projects</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {#each data.closedProjects as project}
+            <a
+              href="/projects/{project.id}"
+              class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow border-l-4 border-gray-400"
+            >
+              <div class="flex items-start justify-between mb-3">
+                <h3 class="text-lg font-semibold text-gray-900">
+                  {project.name}
+                </h3>
+                <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+                  Closed
+                </span>
+              </div>
+              
+              {#if project.description}
+                <p class="text-sm text-gray-600 mb-3 line-clamp-2">
+                  {project.description}
+                </p>
+              {/if}
+              
+              <div class="flex items-center justify-between text-sm">
+                <div class="text-gray-500">
+                  {project._count.tasks} task{project._count.tasks !== 1 ? 's' : ''}
+                </div>
+                <div class="text-gray-400 text-xs">
+                  Closed {formatDateInUserTZ(project.updatedAt, 'MMM d, yyyy')}
+                </div>
+              </div>
+            </a>
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     <!-- Task Groups -->
     <div class="space-y-6">

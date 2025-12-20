@@ -26,43 +26,44 @@ export const POST: RequestHandler = async ({ params }) => {
     throw error(404, 'Task not found');
   }
 
-  // If task belongs to a project, check if all tasks in that project are now completed
-  // If so, delete all follow-ups for tasks in that project
-  if (task.projectId) {
-    const projectTasks = await db.task.findMany({
-      where: {
-        projectId: task.projectId,
-        status: { notIn: ['cancelled'] },
-      },
-    });
+  // Get all pending follow-ups for this task before marking them complete
+  const pendingFollowUps = await db.followUp.findMany({
+    where: {
+      taskId: task.id,
+      status: 'pending',
+    },
+    include: {
+      targetPerson: true,
+    },
+  });
 
-    // Check if all non-cancelled tasks are completed
-    const allCompleted = projectTasks.every((t) => t.status === 'completed');
+  // Mark all pending follow-ups for this task as completed
+  await db.followUp.updateMany({
+    where: {
+      taskId: task.id,
+      status: 'pending',
+    },
+    data: {
+      status: 'completed',
+      completedAt: new Date(),
+    },
+  });
 
-    if (allCompleted && projectTasks.length > 0) {
-      // Delete all pending follow-ups for tasks in this project
-      const taskIds = projectTasks.map((t) => t.id);
-      await db.followUp.deleteMany({
-        where: {
-          taskId: { in: taskIds },
-          status: 'pending',
-        },
-      });
-    } else {
-      // Even if not all tasks are completed, delete follow-ups for this specific completed task
-      await db.followUp.deleteMany({
-        where: {
-          taskId: task.id,
-          status: 'pending',
-        },
-      });
-    }
-  } else {
-    // Task has no project - just delete follow-ups for this task
-    await db.followUp.deleteMany({
-      where: {
+  // Create timeline entries for each auto-completed follow-up
+  for (const followUp of pendingFollowUps) {
+    const activityDescription = `Follow-up auto-completed (task completed)${followUp.targetPerson ? ` with ${followUp.targetPerson.displayName}` : ''}`;
+    
+    await db.taskActivity.create({
+      data: {
         taskId: task.id,
-        status: 'pending',
+        activityType: 'followup_completed',
+        description: activityDescription,
+        metadata: {
+          followUpId: followUp.id,
+          followUpType: followUp.followUpType,
+          targetPersonId: followUp.targetPersonId,
+          autoCompleted: true,
+        },
       },
     });
   }

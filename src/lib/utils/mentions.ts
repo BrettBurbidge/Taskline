@@ -279,3 +279,62 @@ export function highlightProjects(text: string): string {
   return highlighted;
 }
 
+/**
+ * Clean task title by removing or transforming parsed elements
+ * - Removes #project tags (they become task.project)
+ * - Removes date phrases (they become task.dueAt)
+ * - Removes executor arrows → @person (they become task.executor)
+ * - Transforms @mentions to capitalized names
+ * 
+ * @param text - The raw task title text
+ * @param parsedDateText - Optional matched date text from parseDate()
+ * @returns Cleaned title string
+ * 
+ * @example
+ * cleanTaskTitle("Follow up with @steen and @sara tomorrow #Website", "tomorrow")
+ * // Returns: "Follow up with Steen and Sara"
+ * 
+ * cleanTaskTitle("Fix bug Dec 25 → @jeff #Frontend", "Dec 25")
+ * // Returns: "Fix bug"
+ */
+export function cleanTaskTitle(text: string, parsedDateText?: string | null): string {
+  if (!text) return '';
+  
+  let cleaned = text;
+  
+  // Step 1: Remove project tags (#project or #"Project Name")
+  // Remove quoted projects: #"Project Name" or #'Project Name'
+  cleaned = cleaned.replace(/#["']([^"']+)["']/g, '');
+  // Remove unquoted projects: #ProjectName
+  cleaned = cleaned.replace(/#\w+/g, '');
+  
+  // Step 2: Remove date phrases
+  if (parsedDateText) {
+    // Create a case-insensitive regex to remove the matched date text
+    const dateRegex = new RegExp(
+      '\\b' + parsedDateText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b',
+      'gi'
+    );
+    cleaned = cleaned.replace(dateRegex, '');
+  }
+  
+  // Step 3: Remove executor arrows and patterns
+  // Remove: → @person or > @person
+  cleaned = cleaned.replace(/[→>]\s*@\w+/g, '');
+  // Remove: "delegate to @person" or "delegated to @person"
+  cleaned = cleaned.replace(/delegat(?:e|ed)\s+to\s+@\w+/gi, '');
+  // Remove: "assign to @person" or "assigned to @person"
+  cleaned = cleaned.replace(/assign(?:ed)?\s+to\s+@\w+/gi, '');
+  
+  // Step 4: Transform remaining @mentions to capitalized names
+  cleaned = cleaned.replace(/@(\w+)/g, (match, handle) => {
+    // Capitalize first letter, lowercase the rest
+    return handle.charAt(0).toUpperCase() + handle.slice(1).toLowerCase();
+  });
+  
+  // Step 5: Clean up extra whitespace
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  return cleaned;
+}
+

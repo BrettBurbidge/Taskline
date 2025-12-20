@@ -6,10 +6,15 @@
 	let { data }: { data: PageData } = $props();
 
 	let showDeleteModal = $state(false);
+	let showCloseModal = $state(false);
+	let showEditModal = $state(false);
 	let selectedMoveToProject = $state<string>('none');
 	let isDeleting = $state(false);
 	let deleteError = $state('');
 	let isCompleting = $state(false);
+	let editName = $state('');
+	let editDescription = $state('');
+	let isSaving = $state(false);
 
 	function getStatusColor(status: string) {
 		switch (status) {
@@ -26,11 +31,44 @@
 		}
 	}
 
-	async function completeProject() {
-		if (!confirm(`Mark "${data.project.name}" as completed? This will delete all pending follow-ups for tasks in this project.`)) {
+	function openEditModal() {
+		editName = data.project.name;
+		editDescription = data.project.description || '';
+		showEditModal = true;
+	}
+
+	async function saveProject() {
+		if (!editName.trim()) {
+			alert('Project name is required');
 			return;
 		}
 
+		isSaving = true;
+
+		try {
+			const response = await fetch(`/api/projects/${data.project.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: editName.trim(),
+					description: editDescription.trim() || null,
+				}),
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to update project');
+			}
+
+			// Reload the page to show updated data
+			window.location.reload();
+		} catch (err) {
+			alert(err instanceof Error ? err.message : 'Failed to update project');
+		} finally {
+			isSaving = false;
+		}
+	}
+
+	async function completeProject() {
 		isCompleting = true;
 
 		try {
@@ -43,15 +81,16 @@
 			});
 
 			if (!response.ok) {
-				throw new Error('Failed to complete project');
+				throw new Error('Failed to close project');
 			}
 
-			// Reload the page to show updated status
-			window.location.reload();
+			// Redirect to projects list
+			goto('/projects');
 		} catch (err) {
-			alert(err instanceof Error ? err.message : 'Failed to complete project');
+			alert(err instanceof Error ? err.message : 'Failed to close project');
 		} finally {
 			isCompleting = false;
+			showCloseModal = false;
 		}
 	}
 
@@ -110,6 +149,13 @@
 				</div>
 
 				<div class="flex gap-3">
+					<button
+						type="button"
+						onclick={openEditModal}
+						class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+					>
+						✏️ Edit
+					</button>
 					<a
 						href="/inbox"
 						class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
@@ -119,11 +165,10 @@
 					{#if data.project.isActive}
 						<button
 							type="button"
-							onclick={completeProject}
-							disabled={isCompleting}
-							class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+							onclick={() => (showCloseModal = true)}
+							class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium"
 						>
-							{isCompleting ? 'Completing...' : '✓ Mark as Completed'}
+							📦 Close Project
 						</button>
 					{/if}
 					<button
@@ -131,11 +176,135 @@
 						onclick={() => (showDeleteModal = true)}
 						class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
 					>
-						🗑️ Delete Project
+						🗑️ Delete
 					</button>
 				</div>
 			</div>
 		</div>
+
+		<!-- Edit Project Modal -->
+		{#if showEditModal}
+			<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+				<div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+					<h2 class="text-xl font-bold text-gray-900 mb-4">Edit Project</h2>
+
+					<div class="space-y-4">
+						<div>
+							<label for="edit-name" class="block text-sm font-medium text-gray-700 mb-2">
+								Project Name *
+							</label>
+							<input
+								id="edit-name"
+								type="text"
+								bind:value={editName}
+								placeholder="e.g., Website Redesign"
+								class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							/>
+						</div>
+						<div>
+							<label for="edit-description" class="block text-sm font-medium text-gray-700 mb-2">
+								Description
+							</label>
+							<textarea
+								id="edit-description"
+								bind:value={editDescription}
+								rows="3"
+								placeholder="Optional project description..."
+								class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							></textarea>
+						</div>
+					</div>
+
+					<div class="flex gap-3 justify-end mt-6">
+						<button
+							onclick={() => {
+								showEditModal = false;
+								editName = '';
+								editDescription = '';
+							}}
+							disabled={isSaving}
+							class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+						>
+							Cancel
+						</button>
+						<button
+							onclick={saveProject}
+							disabled={isSaving || !editName.trim()}
+							class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{isSaving ? 'Saving...' : 'Save Changes'}
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Close Project Modal -->
+		{#if showCloseModal}
+			<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+				<div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+					<h2 class="text-xl font-bold text-gray-900 mb-4">Close Project</h2>
+
+					{#if data.tasksByStatus.active.length > 0}
+						<div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+							<div class="flex items-start gap-3">
+								<span class="text-amber-600 text-2xl">⚠️</span>
+								<div>
+									<h3 class="font-semibold text-amber-900 mb-1">Active Tasks Warning</h3>
+									<p class="text-sm text-amber-800 mb-2">
+										This project has <strong>{data.tasksByStatus.active.length} active task(s)</strong>:
+									</p>
+									<ul class="text-sm text-amber-800 space-y-1 max-h-32 overflow-y-auto">
+										{#each data.tasksByStatus.active.slice(0, 5) as task}
+											<li class="flex items-start gap-2">
+												<span class="text-amber-600">•</span>
+												<span>{task.title}</span>
+											</li>
+										{/each}
+										{#if data.tasksByStatus.active.length > 5}
+											<li class="text-amber-700 italic">
+												...and {data.tasksByStatus.active.length - 5} more
+											</li>
+										{/if}
+									</ul>
+								</div>
+							</div>
+						</div>
+					{/if}
+
+					<p class="text-gray-700 mb-4">
+						{#if data.tasksByStatus.active.length > 0}
+							Closing this project will:
+							<ul class="list-disc list-inside mt-2 space-y-1 text-sm">
+								<li>Mark the project as closed</li>
+								<li>Keep all tasks (they won't be affected)</li>
+								<li>Mark all pending follow-ups for tasks in this project as completed</li>
+								<li>Move the project to the Completed Projects archive</li>
+							</ul>
+						{:else}
+							This project has no active tasks. Closing it will archive it in the Completed Projects section.
+						{/if}
+					</p>
+
+					<div class="flex gap-3 justify-end">
+						<button
+							onclick={() => (showCloseModal = false)}
+							disabled={isCompleting}
+							class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+						>
+							Cancel
+						</button>
+						<button
+							onclick={completeProject}
+							disabled={isCompleting}
+							class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{isCompleting ? 'Closing...' : 'Close Project'}
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Delete Confirmation Modal -->
 		{#if showDeleteModal}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
-	import { parseMentions, parseProjects } from '$lib/utils/mentions';
+	import { parseMentions, parseProjects, cleanTaskTitle } from '$lib/utils/mentions';
 	import { parseDate, formatParsedDate, formatParsedDateForInput } from '$lib/utils/dateParser';
 	import { getUserTimezone } from '$lib/utils/timezone';
 
@@ -107,6 +107,14 @@
 	});
 
 	let showDateSuggestion = $derived(parsedDateResult.date !== null && !dueAt);
+
+	// Generate cleaned title preview
+	let cleanedTitlePreview = $derived.by(() => {
+		if (!title.trim()) return '';
+		const cleaned = cleanTaskTitle(title, parsedDateResult.matchedText);
+		// Only show preview if it's different from original and has content
+		return cleaned && cleaned !== title.trim() ? cleaned : '';
+	});
 
 	async function createTask() {
 		if (!title.trim()) {
@@ -224,14 +232,15 @@
 				finalDueAt = formatParsedDateForInput(parsedDateResult);
 			}
 
-			// Step 5: Create the task
+			// Step 5: Create the task with cleaned title
+			const cleanedTitle = cleanTaskTitle(title, parsedDateResult.matchedText);
 			const response = await fetch('/api/tasks', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
-					title: title.trim(),
+					title: cleanedTitle || title.trim(), // Use cleaned title, fallback to original if empty
 					description: description.trim() || null,
 					dueAt: finalDueAt || null,
 					projectId: finalProjectId,
@@ -720,6 +729,26 @@
 						class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
 					/>
 				</div>
+
+				<!-- Cleaned Title Preview -->
+				{#if cleanedTitlePreview}
+					<div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+						<div class="flex items-start gap-2">
+							<span class="text-blue-600 text-lg">✨</span>
+							<div class="flex-1">
+								<div class="text-sm font-medium text-blue-900 mb-1">
+									Task will be created as:
+								</div>
+								<div class="text-base text-gray-900 font-medium">
+									{cleanedTitlePreview}
+								</div>
+								<div class="text-xs text-blue-700 mt-1">
+									Projects, dates, and @mentions will be automatically tagged
+				</div>
+							</div>
+						</div>
+					</div>
+				{/if}
 
 				<!-- Parsed Date Preview -->
 				{#if showDateSuggestion}

@@ -122,23 +122,14 @@
 						href="/projects/{project.id}"
 						class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-gray-300 transition-all p-6 block"
 					>
-						<div class="flex items-start justify-between mb-4">
-							<div class="flex-1">
-								<h3 class="text-lg font-semibold text-gray-900 mb-1">
-									{project.name}
-								</h3>
-								{#if project.description}
-									<p class="text-sm text-gray-600 line-clamp-2">
-										{project.description}
-									</p>
-								{/if}
-							</div>
-							{#if project._count.tasks > 0}
-								<span
-									class="ml-3 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
-								>
-									{project._count.tasks}
-								</span>
+						<div class="mb-4">
+							<h3 class="text-lg font-semibold text-gray-900 mb-1">
+								{project.name}
+							</h3>
+							{#if project.description}
+								<p class="text-sm text-gray-600 line-clamp-2">
+									{project.description}
+								</p>
 							{/if}
 						</div>
 
@@ -148,18 +139,48 @@
 							</div>
 						{/if}
 
-						{#if project.tasks.length > 0}
+						<!-- Task Status Summary -->
+						{#if project.taskCounts.total > 0}
 							<div class="border-t border-gray-200 pt-4">
 								<div class="text-xs font-medium text-gray-500 mb-2">
-									Upcoming tasks:
+									Task Summary:
 								</div>
-								<div class="space-y-2">
-									{#each project.tasks as task}
-										<div class="text-sm text-gray-700 flex items-start gap-2">
-											<span class="text-gray-400">•</span>
-											<span class="flex-1 line-clamp-1">{task.title}</span>
-										</div>
-									{/each}
+								<div class="flex flex-wrap gap-2">
+									{#if project.taskCounts.inProgress > 0}
+										<span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+											<span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+											{project.taskCounts.inProgress} In Progress
+										</span>
+									{/if}
+									{#if project.taskCounts.notStarted > 0}
+										<span class="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+											<span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+											{project.taskCounts.notStarted} Not Started
+										</span>
+									{/if}
+									{#if project.taskCounts.waiting > 0}
+										<span class="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium">
+											<span class="w-2 h-2 bg-yellow-500 rounded-full"></span>
+											{project.taskCounts.waiting} Waiting
+										</span>
+									{/if}
+									{#if project.taskCounts.completed > 0}
+										<span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+											<span class="w-2 h-2 bg-green-500 rounded-full"></span>
+											{project.taskCounts.completed} Completed
+										</span>
+									{/if}
+								</div>
+								
+								<!-- Total count -->
+								<div class="mt-3 text-xs text-gray-500">
+									Total: {project.taskCounts.total} task{project.taskCounts.total !== 1 ? 's' : ''}
+								</div>
+							</div>
+						{:else}
+							<div class="border-t border-gray-200 pt-4">
+								<div class="text-sm text-gray-500 italic">
+									No tasks yet
 								</div>
 							</div>
 						{/if}

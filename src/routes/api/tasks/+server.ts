@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import { dateStringToUTC } from '$lib/utils/timezone';
+import { generateForTask } from '$lib/services/followupEngine';
 import type { RequestHandler } from './$types';
 
 // GET /api/tasks - fetch tasks with optional filters
@@ -118,6 +119,14 @@ export const POST: RequestHandler = async ({ request }) => {
       },
     },
   });
+
+  // Auto-generate follow-ups for the newly created task
+  try {
+    await generateForTask(task.id, new Date(), tz);
+  } catch (error) {
+    // Log error but don't fail task creation
+    console.error('Failed to auto-generate follow-ups:', error);
+  }
 
   return json(task, { status: 201 });
 };

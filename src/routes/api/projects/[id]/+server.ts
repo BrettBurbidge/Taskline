@@ -6,7 +6,7 @@ import type { RequestHandler } from './$types';
 export const PATCH: RequestHandler = async ({ params, request }) => {
   const projectId = params.id;
   const body = await request.json();
-  const { isActive } = body;
+  const { isActive, name, description } = body;
 
   // Check if project exists
   const project = await db.project.findUnique({
@@ -22,10 +22,12 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
     where: { id: projectId },
     data: {
       isActive: isActive !== undefined ? isActive : project.isActive,
+      name: name !== undefined ? name : project.name,
+      description: description !== undefined ? description : project.description,
     },
   });
 
-  // If project is being marked as inactive (completed), delete all follow-ups for tasks in this project
+  // If project is being marked as inactive (completed), mark all pending follow-ups as completed
   if (isActive === false && project.isActive === true) {
     // Get all task IDs for this project
     const projectTasks = await db.task.findMany({
@@ -36,11 +38,15 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
     const taskIds = projectTasks.map((t) => t.id);
 
     if (taskIds.length > 0) {
-      // Delete all pending follow-ups for tasks in this project
-      await db.followUp.deleteMany({
+      // Mark all pending follow-ups for tasks in this project as completed
+      await db.followUp.updateMany({
         where: {
           taskId: { in: taskIds },
           status: 'pending',
+        },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
         },
       });
     }

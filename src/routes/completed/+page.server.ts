@@ -80,11 +80,25 @@ export const load: PageServerLoad = async () => {
     orderBy: { displayName: 'asc' },
   });
 
+  // Get closed projects with task counts
+  const closedProjects = await db.project.findMany({
+    where: { isActive: false },
+    include: {
+      _count: {
+        select: {
+          tasks: true,
+        },
+      },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+
   return {
     groupedTasks,
     stats,
     projects,
     people,
+    closedProjects,
   };
 };
 
