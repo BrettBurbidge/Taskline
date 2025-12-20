@@ -99,7 +99,7 @@ Taskline is a lightweight, single-user task and follow-up system designed to hel
    Create a `.env` file in the root:
 
    ```env
-   DATABASE_URL="postgresql://papa:papa_dev_password@localhost:5432/papa_db?schema=public"
+   DATABASE_URL="postgresql://taskline:taskline_dev_password@localhost:5432/taskline_db?schema=public"
 
    # Optional: For AI features
    OPENAI_API_KEY="your-openai-api-key"
@@ -120,7 +120,7 @@ Taskline is a lightweight, single-user task and follow-up system designed to hel
    This creates:
 
    - A default user: Brett (@brett)
-   - A sample project: Papa Development
+   - A sample project: Taskline Development
 
 7. **Start the development server:**
 
@@ -273,8 +273,12 @@ This project follows a feature-branch workflow with Docker deployment:
 4. **Rebuild and deploy with Docker:**
    ```bash
    docker compose down
-   docker compose up --build -d
+   docker rmi taskline-app 2>/dev/null || true
+   docker compose build --no-cache app
+   docker compose up -d
    ```
+
+   The `--no-cache` flag ensures Docker doesn't use stale cached layers from previous builds.
 
 This ensures each feature is isolated during development and the production environment is rebuilt with the latest changes after merging.
 

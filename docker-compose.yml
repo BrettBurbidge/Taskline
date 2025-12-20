@@ -2,18 +2,18 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: papa-postgres
+    container_name: taskline-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: papa
-      POSTGRES_PASSWORD: papa_dev_password
-      POSTGRES_DB: papa_db
+      POSTGRES_USER: taskline
+      POSTGRES_PASSWORD: taskline_dev_password
+      POSTGRES_DB: taskline_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U papa -d papa_db"]
+      test: ["CMD-SHELL", "pg_isready -U taskline -d taskline_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,12 +22,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: papa-app
+    container_name: taskline-app
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://papa:papa_dev_password@postgres:5432/papa_db
+      DATABASE_URL: postgresql://taskline:taskline_dev_password@postgres:5432/taskline_db
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NODE_ENV: production
       ORIGIN: http://localhost:3000
