@@ -193,125 +193,21 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Tasks Column -->
       <div class="lg:col-span-2 space-y-4">
-        <!-- Due on This Day -->
-        {#if data.dueTasks.length > 0}
-          <div
-            class="bg-orange-50 rounded-lg shadow-sm border border-orange-200"
-          >
-            <div class="p-4 border-b border-orange-200">
-              <h2 class="text-lg font-semibold text-orange-900">
-                📅 Due on This Day
-                <span class="ml-2 text-sm font-normal text-orange-700"
-                  >({data.dueTasks.length})</span
-                >
-              </h2>
-            </div>
-
-            <div class="divide-y divide-orange-100">
-              {#each data.dueTasks as task, index}
-                <div class="p-4 hover:bg-orange-100 transition-colors">
-                  <div class="flex items-start gap-4">
-                    <!-- Reorder Controls -->
-                    <div class="flex flex-col gap-1 pt-1">
-                      <button
-                        onclick={() => reorderTask(task.id, "up", data.targetDate)}
-                        disabled={index === 0}
-                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Move up"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        onclick={() => reorderTask(task.id, "down", data.targetDate)}
-                        disabled={index === data.dueTasks.length - 1}
-                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Move down"
-                      >
-                        ↓
-                      </button>
-                    </div>
-
-                    <!-- Task Content -->
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                          <h3 class="font-medium text-gray-900">
-                            <a
-                              href="/tasks/{task.id}"
-                              class="hover:text-blue-600 hover:underline transition-colors"
-                            >
-                              {task.title}
-                            </a>
-                          </h3>
-                          {#if task.description}
-                            <p class="text-sm text-gray-600 mt-1">
-                              {task.description}
-                            </p>
-                          {/if}
-                          <div class="flex items-center gap-3 mt-2 text-sm">
-                            <span
-                              class="px-2 py-1 rounded-full text-xs font-medium {getStatusColor(
-                                task.status
-                              )}"
-                            >
-                              {task.status.replace("_", " ")}
-                            </span>
-                            {#if task.project}
-                              <span class="text-gray-500">
-                                📁 {task.project.name}
-                              </span>
-                            {/if}
-                            {#if task.executorPerson && task.executorPerson.id !== task.accountablePerson.id}
-                              <span class="text-gray-500">
-                                → @{task.executorPerson.handle}
-                              </span>
-                            {/if}
-                            {#if task.stakeholders.length > 0}
-                              <span class="text-gray-500">
-                                👥 {task.stakeholders.length}
-                              </span>
-                            {/if}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="flex flex-col gap-2">
-                      <button
-                        onclick={() => completeTask(task.id)}
-                        class="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
-                      >
-                        ✓ Complete
-                      </button>
-                      <a
-                        href="/tasks/{task.id}"
-                        class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-center"
-                      >
-                        View
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-
-        <!-- Scheduled for This Day -->
+        <!-- Tasks for This Day -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="p-4 border-b border-gray-200">
             <h2 class="text-lg font-semibold text-gray-900">
-              📋 Scheduled for This Day
+              📋 Tasks for This Day
               <span class="ml-2 text-sm font-normal text-gray-500"
-                >({data.scheduledTasks.length})</span
+                >({data.dayTasks.length})</span
               >
             </h2>
           </div>
 
-          {#if data.scheduledTasks.length === 0}
+          {#if data.dayTasks.length === 0}
             <div class="p-12 text-center">
               <div class="text-4xl mb-4">📅</div>
-              <p class="text-gray-600 mb-4">No tasks scheduled for this day</p>
+              <p class="text-gray-600 mb-4">No tasks for this day</p>
               <a
                 href="/inbox"
                 class="text-blue-600 hover:text-blue-700 font-medium"
@@ -321,7 +217,7 @@
             </div>
           {:else}
             <div class="divide-y divide-gray-200">
-              {#each data.scheduledTasks as task, index}
+              {#each data.dayTasks as task, index}
                 <div class="p-4 hover:bg-gray-50 transition-colors">
                   <div class="flex items-start gap-4">
                     <!-- Reorder Controls -->
@@ -336,7 +232,7 @@
                       </button>
                       <button
                         onclick={() => reorderTask(task.id, "down", data.targetDate)}
-                        disabled={index === data.scheduledTasks.length - 1}
+                        disabled={index === data.dayTasks.length - 1}
                         class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Move down"
                       >
@@ -376,7 +272,7 @@
                             {/if}
                             {#if task.dueAt}
                               <span class="text-gray-500">
-                                📅 {formatDateInUserTZ(task.dueAt, "MMM d")}
+                                📅 Due {formatDateInUserTZ(task.dueAt, "MMM d")}
                               </span>
                             {/if}
                             {#if task.executorPerson && task.executorPerson.id !== task.accountablePerson.id}
@@ -478,17 +374,9 @@
         <div class="bg-blue-50 rounded-lg border border-blue-200 p-4">
           <h3 class="text-sm font-semibold text-blue-900 mb-3">Day Summary</h3>
           <div class="space-y-2 text-sm text-blue-800">
-            {#if data.dueTasks.length > 0}
-              <div class="flex justify-between">
-                <span>Due:</span>
-                <span class="font-medium text-orange-600"
-                  >{data.dueTasks.length}</span
-                >
-              </div>
-            {/if}
             <div class="flex justify-between">
-              <span>Scheduled:</span>
-              <span class="font-medium">{data.scheduledTasks.length}</span>
+              <span>Tasks:</span>
+              <span class="font-medium">{data.dayTasks.length}</span>
             </div>
             <div class="flex justify-between">
               <span>Follow-ups:</span>
@@ -497,9 +385,7 @@
             <div class="flex justify-between pt-2 border-t border-blue-200">
               <span>Total:</span>
               <span class="font-bold"
-                >{data.dueTasks.length +
-                  data.scheduledTasks.length +
-                  data.followUps.length}</span
+                >{data.dayTasks.length + data.followUps.length}</span
               >
             </div>
           </div>

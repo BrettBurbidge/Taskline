@@ -113,16 +113,16 @@
           ⚠️ Overdue ({data.overdueTasks.length})
         </h2>
         <div class="space-y-2">
-          {#each data.overdueTasks as task}
+              {#each data.overdueTasks as task}
             <a
               href="/tasks/{task.id}"
               class="block bg-white p-3 rounded border-l-4 {getStatusColor(
                 task.status
-              )} shadow-sm hover:shadow-md transition-shadow"
+              )} shadow-sm hover:shadow-md transition-shadow {task.status === 'completed' ? 'opacity-75' : ''}"
             >
               <div class="flex items-start justify-between">
                 <div class="flex-1">
-                  <h3 class="font-medium text-gray-900">{task.title}</h3>
+                  <h3 class="font-medium text-gray-900 {task.status === 'completed' ? 'line-through' : ''}">{task.title}</h3>
                   <div
                     class="flex items-center gap-3 mt-1 text-sm text-gray-600"
                   >
@@ -188,9 +188,9 @@
                   href="/tasks/{task.id}"
                   class="block p-2 bg-gray-50 rounded border-l-4 {getStatusColor(
                     task.status
-                  )} hover:bg-gray-100 transition-colors cursor-pointer"
+                  )} hover:bg-gray-100 transition-colors cursor-pointer {task.status === 'completed' ? 'opacity-75' : ''}"
                 >
-                  <h4 class="text-sm font-medium text-gray-900 line-clamp-2">
+                  <h4 class="text-sm font-medium text-gray-900 line-clamp-2 {task.status === 'completed' ? 'line-through' : ''}">
                     {task.title}
                   </h4>
                   <div class="flex items-center gap-2 mt-1">
@@ -227,9 +227,9 @@
               href="/tasks/{task.id}"
               class="block bg-white p-3 rounded border-l-4 {getStatusColor(
                 task.status
-              )} shadow-sm hover:shadow-md transition-shadow"
+              )} shadow-sm hover:shadow-md transition-shadow {task.status === 'completed' ? 'opacity-75' : ''}"
             >
-              <h3 class="font-medium text-gray-900">{task.title}</h3>
+              <h3 class="font-medium text-gray-900 {task.status === 'completed' ? 'line-through' : ''}">{task.title}</h3>
               <div class="flex items-center gap-3 mt-1 text-sm text-gray-600">
                 {#if task.project}
                   <span>📁 {task.project.name}</span>

@@ -211,7 +211,7 @@
         </button>
         <button
           onclick={rolloverTasks}
-          disabled={rollingOver || data.scheduledTasks.length === 0}
+          disabled={rollingOver || data.todayTasks.length === 0}
           class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {rollingOver ? "Rolling over..." : "→ Rollover to Tomorrow"}
@@ -222,126 +222,18 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Tasks Column -->
       <div class="lg:col-span-2 space-y-4">
-        <!-- Due/Overdue Tasks -->
-        {#if data.dueTasks.length > 0}
-          <div class="bg-red-50 rounded-lg shadow-sm border border-red-200">
-            <div class="p-4 border-b border-red-200">
-              <h2 class="text-lg font-semibold text-red-900">
-                ⚠️ Due Today / Overdue
-                <span class="ml-2 text-sm font-normal text-red-700"
-                  >({data.dueTasks.length})</span
-                >
-              </h2>
-            </div>
-
-            <div class="divide-y divide-red-100">
-              {#each data.dueTasks as task, index}
-                <div class="p-4 hover:bg-red-100 transition-colors">
-                  <div class="flex items-start gap-4">
-                    <!-- Reorder Controls -->
-                    <div class="flex flex-col gap-1 pt-1">
-                      <button
-                        onclick={() => reorderTask(task.id, "up", data.todayDate)}
-                        disabled={index === 0}
-                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Move up"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        onclick={() => reorderTask(task.id, "down", data.todayDate)}
-                        disabled={index === data.dueTasks.length - 1}
-                        class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Move down"
-                      >
-                        ↓
-                      </button>
-                    </div>
-
-                    <!-- Task Content -->
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                          <h3 class="font-medium text-gray-900">
-                            <a
-                              href="/tasks/{task.id}"
-                              class="hover:text-blue-600 hover:underline transition-colors"
-                            >
-                              {task.title}
-                            </a>
-                          </h3>
-                          {#if task.description}
-                            <p class="text-sm text-gray-600 mt-1">
-                              {task.description}
-                            </p>
-                          {/if}
-                          <div class="flex items-center gap-3 mt-2 text-sm">
-                            <span
-                              class="px-2 py-1 rounded-full text-xs font-medium {getStatusColor(
-                                task.status
-                              )}"
-                            >
-                              {task.status.replace("_", " ")}
-                            </span>
-                            {#if task.project}
-                              <span class="text-gray-500">
-                                📁 {task.project.name}
-                              </span>
-                            {/if}
-                            {#if task.dueAt}
-                              <span class="text-red-600 font-medium">
-                                📅 {formatDateInUserTZ(task.dueAt, "MMM d")}
-                              </span>
-                            {/if}
-                            {#if task.executorPerson && task.executorPerson.id !== task.accountablePerson.id}
-                              <span class="text-gray-500">
-                                → @{task.executorPerson.handle}
-                              </span>
-                            {/if}
-                            {#if task.stakeholders.length > 0}
-                              <span class="text-gray-500">
-                                👥 {task.stakeholders.length}
-                              </span>
-                            {/if}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Action Buttons -->
-                    <div class="flex flex-col gap-2">
-                      <button
-                        onclick={() => completeTask(task.id)}
-                        class="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
-                      >
-                        ✓ Complete
-                      </button>
-                      <a
-                        href="/tasks/{task.id}"
-                        class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-center"
-                      >
-                        View
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-
-        <!-- Scheduled Tasks for Today -->
+        <!-- Tasks for Today -->
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="p-4 border-b border-gray-200">
             <h2 class="text-lg font-semibold text-gray-900">
-              Scheduled for Today
+              📋 Tasks for Today
               <span class="ml-2 text-sm font-normal text-gray-500"
-                >({data.scheduledTasks.length})</span
+                >({data.todayTasks.length})</span
               >
             </h2>
           </div>
 
-          {#if data.scheduledTasks.length === 0}
+          {#if data.todayTasks.length === 0}
             <div class="p-12 text-center">
               <div class="text-4xl mb-4">🎉</div>
               <p class="text-gray-600 mb-4">No tasks for today!</p>
@@ -354,7 +246,7 @@
             </div>
           {:else}
             <div class="divide-y divide-gray-200">
-              {#each data.scheduledTasks as task, index}
+              {#each data.todayTasks as task, index}
                 <div class="p-4 hover:bg-gray-50 transition-colors">
                   <div class="flex items-start gap-4">
                     <!-- Reorder Controls -->
@@ -369,7 +261,7 @@
                       </button>
                       <button
                         onclick={() => reorderTask(task.id, "down", data.todayDate)}
-                        disabled={index === data.scheduledTasks.length - 1}
+                        disabled={index === data.todayTasks.length - 1}
                         class="text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Move down"
                       >
@@ -409,7 +301,7 @@
                             {/if}
                             {#if task.dueAt}
                               <span class="text-gray-500">
-                                📅 {formatDateInUserTZ(task.dueAt, "MMM d")}
+                                📅 Due {formatDateInUserTZ(task.dueAt, "MMM d")}
                               </span>
                             {/if}
                             {#if task.executorPerson && task.executorPerson.id !== task.accountablePerson.id}
@@ -564,21 +456,19 @@
             Today's Progress
           </h3>
           <div class="space-y-2 text-sm text-blue-800">
-            {#if data.dueTasks.length > 0}
-              <div class="flex justify-between">
-                <span>Due/Overdue:</span>
-                <span class="font-medium text-red-600"
-                  >{data.dueTasks.length}</span
-                >
-              </div>
-            {/if}
             <div class="flex justify-between">
-              <span>Scheduled:</span>
-              <span class="font-medium">{data.scheduledTasks.length}</span>
+              <span>Tasks:</span>
+              <span class="font-medium">{data.todayTasks.length}</span>
             </div>
             <div class="flex justify-between">
               <span>Follow-ups:</span>
               <span class="font-medium">{data.followUps.length}</span>
+            </div>
+            <div class="flex justify-between pt-2 border-t border-blue-200">
+              <span>Total:</span>
+              <span class="font-bold"
+                >{data.todayTasks.length + data.followUps.length}</span
+              >
             </div>
           </div>
         </div>

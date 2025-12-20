@@ -14,9 +14,9 @@ export const load: PageServerLoad = async ({ params }) => {
 
   const nextDay = addDays(targetDate, 1);
 
-  // Fetch tasks for this specific day:
-  // 1. Tasks with boardDate = targetDate (scheduled for this day)
-  // 2. Tasks with dueAt = targetDate (due on this day)
+  // Fetch all tasks relevant to this specific day:
+  // - Tasks with boardDate = targetDate (scheduled to work on this day)
+  // - Tasks with dueAt on or before targetDate (due or overdue)
   const tasks = await db.task.findMany({
     where: {
       OR: [
@@ -25,11 +25,10 @@ export const load: PageServerLoad = async ({ params }) => {
           boardDate: targetDate,
           status: { in: ["not_started", "in_progress", "waiting"] },
         },
-        // Tasks due on this day
+        // Tasks due on or before this day
         {
           dueAt: {
-            gte: targetDate,
-            lt: nextDay,
+            lte: nextDay,
           },
           status: { in: ["not_started", "in_progress", "waiting"] },
         },
@@ -48,85 +47,30 @@ export const load: PageServerLoad = async ({ params }) => {
     orderBy: [{ sortOrder: "asc" }, { dueAt: "asc" }, { createdAt: "desc" }],
   });
 
-  // Separate tasks scheduled for this day from tasks only due on this day
-  const scheduledTasks = tasks
-    .filter((task) => {
-      const taskBoardDate = task.boardDate
-        ? startOfDay(new Date(task.boardDate))
-        : null;
-      const taskDueAt = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
+  // Remove duplicates and sort by priority
+  const uniqueTasksMap = new Map();
+  for (const task of tasks) {
+    if (!uniqueTasksMap.has(task.id)) {
+      uniqueTasksMap.set(task.id, task);
+    }
+  }
 
-      // Task is scheduled for this day (has boardDate = targetDate)
-      if (taskBoardDate && taskBoardDate.getTime() === targetDate.getTime()) {
-        return true;
-      }
-
-      // Task is due on this day and doesn't have a boardDate set
-      // Include it in scheduled tasks so it appears in the bottom panel
-      if (!taskBoardDate && taskDueAt) {
-        const isDueThisDay = taskDueAt.getTime() === targetDate.getTime();
-        return isDueThisDay;
-      }
-
-      return false;
-    })
-    .sort((a, b) => {
-      // Sort by sortOrder first (nulls last), then by dueAt, then by createdAt
-      const aOrder = a.sortOrder ?? 999999;
-      const bOrder = b.sortOrder ?? 999999;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      
-      if (a.dueAt && b.dueAt) {
-        return a.dueAt.getTime() - b.dueAt.getTime();
-      }
-      if (a.dueAt) return -1;
-      if (b.dueAt) return 1;
-      
-      return b.createdAt.getTime() - a.createdAt.getTime();
-    });
-
-  const dueTasks = tasks
-    .filter((task) => {
-      const taskBoardDate = task.boardDate
-        ? startOfDay(new Date(task.boardDate))
-        : null;
-      const taskDueAt = task.dueAt ? startOfDay(new Date(task.dueAt)) : null;
-
-      // Task is due on this day, AND is NOT scheduled for this day
-      const isDueThisDay =
-        taskDueAt && taskDueAt.getTime() === targetDate.getTime();
-      
-      // Exclude if it's scheduled for this day (has boardDate = targetDate)
-      if (taskBoardDate && taskBoardDate.getTime() === targetDate.getTime()) {
-        return false;
-      }
-      
-      // Exclude if it's due on this day and doesn't have boardDate (it will be in scheduledTasks)
-      if (!taskBoardDate && isDueThisDay) {
-        return false;
-      }
-
-      // Only show overdue tasks (due before this day) in the due section
-      if (taskDueAt && taskDueAt.getTime() < targetDate.getTime()) {
-        return true;
-      }
-
-      return false;
-    })
-    .sort((a, b) => {
-      // Sort by sortOrder first (nulls last), then by dueAt, then by createdAt
-      const aOrder = a.sortOrder ?? 999999;
-      const bOrder = b.sortOrder ?? 999999;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      
-      if (a.dueAt && b.dueAt) {
-        return a.dueAt.getTime() - b.dueAt.getTime();
-      }
-      if (a.dueAt) return -1;
-      if (b.dueAt) return 1;
-      
-      return b.createdAt.getTime() - a.createdAt.getTime();
-    });
+  const dayTasks = Array.from(uniqueTasksMap.values()).sort((a, b) => {
+    // Sort by sortOrder first (nulls last)
+    const aOrder = a.sortOrder ?? 999999;
+    const bOrder = b.sortOrder ?? 999999;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    
+    // Then by dueAt (earlier dates first, nulls last)
+    if (a.dueAt && b.dueAt) {
+      return a.dueAt.getTime() - b.dueAt.getTime();
+    }
+    if (a.dueAt) return -1;
+    if (b.dueAt) return 1;
+    
+    // Finally by creation date (newer first)
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
 
   // Fetch follow-ups due on this day
   const followUps = await db.followUp.findMany({
@@ -150,8 +94,7 @@ export const load: PageServerLoad = async ({ params }) => {
 
   return {
     date: params.date,
-    scheduledTasks,
-    dueTasks,
+    dayTasks,
     followUps,
     targetDate: format(targetDate, "yyyy-MM-dd"),
   };

@@ -1,17 +1,24 @@
-import { db } from '$lib/db';
-import { startOfWeek, endOfWeek, addDays, addWeeks, format, startOfDay } from 'date-fns';
-import type { PageServerLoad } from './$types';
+import { db } from "$lib/db";
+import {
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  addWeeks,
+  format,
+  startOfDay,
+} from "date-fns";
+import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ url }) => {
   // Get week offset from URL params (0 = this week, -1 = last week, 1 = next week, etc.)
-  const weekOffset = parseInt(url.searchParams.get('offset') || '0', 10);
-  
+  const weekOffset = parseInt(url.searchParams.get("offset") || "0", 10);
+
   const today = new Date();
   const referenceDate = addWeeks(today, weekOffset);
   const weekStart = startOfWeek(referenceDate, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(referenceDate, { weekStartsOn: 1 }); // Sunday
 
-  // Fetch tasks for the week
+  // Fetch tasks for the week (including completed tasks)
   const tasks = await db.task.findMany({
     where: {
       OR: [
@@ -28,7 +35,7 @@ export const load: PageServerLoad = async ({ url }) => {
           },
         },
       ],
-      status: { notIn: ['cancelled'] },
+      status: { notIn: ["cancelled"] },
     },
     include: {
       project: true,
@@ -40,7 +47,7 @@ export const load: PageServerLoad = async ({ url }) => {
         },
       },
     },
-    orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+    orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
   });
 
   // Group tasks by date
@@ -52,15 +59,19 @@ export const load: PageServerLoad = async ({ url }) => {
 
   for (const task of tasks) {
     const dueDate = task.dueAt || task.boardDate;
-    
+
     if (!dueDate) {
       noDueDateTasks.push(task);
     } else {
       const taskDate = startOfDay(new Date(dueDate));
-      const dateKey = format(taskDate, 'yyyy-MM-dd');
-      
+      const dateKey = format(taskDate, "yyyy-MM-dd");
+
       // Check if overdue (before today) - only show if viewing current or past weeks
-      if (taskDate < todayStart && task.status !== 'completed' && weekOffset <= 0) {
+      if (
+        taskDate < todayStart &&
+        task.status !== "completed" &&
+        weekOffset <= 0
+      ) {
         overdueTasks.push(task);
       } else {
         if (!tasksByDate[dateKey]) {
@@ -74,7 +85,7 @@ export const load: PageServerLoad = async ({ url }) => {
   // Generate week dates
   const weekDates = [];
   for (let i = 0; i < 7; i++) {
-    weekDates.push(format(addDays(weekStart, i), 'yyyy-MM-dd'));
+    weekDates.push(format(addDays(weekStart, i), "yyyy-MM-dd"));
   }
 
   return {
@@ -82,9 +93,8 @@ export const load: PageServerLoad = async ({ url }) => {
     overdueTasks,
     noDueDateTasks,
     weekDates,
-    weekStart: format(weekStart, 'yyyy-MM-dd'),
-    weekEnd: format(weekEnd, 'yyyy-MM-dd'),
+    weekStart: format(weekStart, "yyyy-MM-dd"),
+    weekEnd: format(weekEnd, "yyyy-MM-dd"),
     weekOffset,
   };
 };
-
