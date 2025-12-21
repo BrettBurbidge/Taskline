@@ -7,9 +7,17 @@ import {
   format,
   startOfDay,
 } from "date-fns";
+import { error } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, "Unauthorized");
+  }
+
   // Get week offset from URL params (0 = this week, -1 = last week, 1 = next week, etc.)
   const weekOffset = parseInt(url.searchParams.get("offset") || "0", 10);
 
@@ -18,9 +26,10 @@ export const load: PageServerLoad = async ({ url }) => {
   const weekStart = startOfWeek(referenceDate, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(referenceDate, { weekStartsOn: 1 }); // Sunday
 
-  // Fetch tasks for the week (including completed tasks)
+  // Fetch tasks for the week (including completed tasks, filtered by userId)
   const tasks = await db.task.findMany({
     where: {
+      userId, // Multi-tenant filter
       OR: [
         {
           dueAt: {

@@ -3,7 +3,14 @@ import { format, startOfDay, addDays, parseISO } from "date-fns";
 import { error } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, "Unauthorized");
+  }
+
   // Parse the date from URL params (format: YYYY-MM-DD)
   let targetDate: Date;
   try {
@@ -14,11 +21,12 @@ export const load: PageServerLoad = async ({ params }) => {
 
   const nextDay = addDays(targetDate, 1);
 
-  // Fetch all tasks relevant to this specific day:
+  // Fetch all tasks relevant to this specific day (filtered by userId):
   // - Active tasks: with boardDate = targetDate OR dueAt on/before targetDate
   // - Completed tasks: ONLY if dueAt is on this specific day
   const tasks = await db.task.findMany({
     where: {
+      userId, // Multi-tenant filter
       OR: [
         // Active tasks scheduled for this day
         {
@@ -80,9 +88,12 @@ export const load: PageServerLoad = async ({ params }) => {
     return b.createdAt.getTime() - a.createdAt.getTime();
   });
 
-  // Fetch follow-ups due on this day
+  // Fetch follow-ups due on this day (filtered through task's userId)
   const followUps = await db.followUp.findMany({
     where: {
+      task: {
+        userId, // Multi-tenant filter through relation
+      },
       dueAt: {
         gte: targetDate,
         lt: nextDay,

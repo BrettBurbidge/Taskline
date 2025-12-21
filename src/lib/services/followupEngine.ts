@@ -17,12 +17,16 @@ interface RuleConfig {
 /**
  * Generate follow-ups for a single task
  * @param taskId - The task ID
+ * @param userId - The user ID (for multi-tenant isolation)
  * @param asOf - The date to generate from (defaults to now)
  * @param timezone - User's timezone for date calculations
  */
-export async function generateForTask(taskId: string, asOf: Date = new Date(), timezone?: string): Promise<void> {
-  const task = await db.task.findUnique({
-    where: { id: taskId },
+export async function generateForTask(taskId: string, userId: string, asOf: Date = new Date(), timezone?: string): Promise<void> {
+  const task = await db.task.findFirst({
+    where: { 
+      id: taskId,
+      userId, // Multi-tenant filter
+    },
     include: {
       followUpRules: true,
       stakeholders: true,
@@ -78,17 +82,20 @@ export async function generateForTask(taskId: string, asOf: Date = new Date(), t
 /**
  * Generate follow-ups for all active tasks (not just tasks on a specific board date)
  * @param boardDate - The board date (for reference)
- * @param asOf - The date to generate from (defaults to now)
+ * @param userId - The user ID (for multi-tenant isolation)
  * @param timezone - User's timezone for date calculations
  */
 export async function generateForActiveTasks(
   boardDate: Date,
-  asOf: Date = new Date(),
+  userId: string,
   timezone?: string
 ): Promise<void> {
-  // Get ALL active tasks with due dates (not just tasks scheduled for today)
+  const asOf = new Date();
+  
+  // Get ALL active tasks with due dates (filtered by userId for multi-tenant)
   const tasks = await db.task.findMany({
     where: {
+      userId, // Multi-tenant filter
       status: { in: ['not_started', 'in_progress', 'waiting'] },
       dueAt: {
         not: null, // Only tasks with due dates
@@ -97,7 +104,7 @@ export async function generateForActiveTasks(
   });
 
   for (const task of tasks) {
-    await generateForTask(task.id, asOf, timezone);
+    await generateForTask(task.id, userId, asOf, timezone);
   }
 }
 

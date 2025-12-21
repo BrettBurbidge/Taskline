@@ -1,17 +1,26 @@
 import { db } from '$lib/db';
 import { startOfDay, subDays, startOfWeek, startOfMonth } from 'date-fns';
+import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   const now = new Date();
   const today = startOfDay(now);
   const yesterday = startOfDay(subDays(now, 1));
   const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
   const thisMonthStart = startOfMonth(now);
 
-  // Fetch all completed tasks with relations
+  // Fetch all completed tasks with relations (filtered by userId)
   const completedTasks = await db.task.findMany({
     where: {
+      userId, // Multi-tenant filter
       status: 'completed',
     },
     include: {
@@ -70,19 +79,26 @@ export const load: PageServerLoad = async () => {
     total: completedTasks.length,
   };
 
-  // Get all projects and people for filters
+  // Get all projects and people for filters (filtered by userId)
   const projects = await db.project.findMany({
-    where: { isActive: true },
+    where: { 
+      userId,
+      isActive: true 
+    },
     orderBy: { name: 'asc' },
   });
 
   const people = await db.person.findMany({
+    where: { userId },
     orderBy: { displayName: 'asc' },
   });
 
-  // Get closed projects with task counts
+  // Get closed projects with task counts (filtered by userId)
   const closedProjects = await db.project.findMany({
-    where: { isActive: false },
+    where: { 
+      userId,
+      isActive: false 
+    },
     include: {
       _count: {
         select: {

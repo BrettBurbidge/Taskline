@@ -2,12 +2,22 @@ import { db } from '$lib/db';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   const handle = params.handle.toLowerCase();
 
-  // Find person by handle
-  const person = await db.person.findUnique({
-    where: { handle },
+  // Find person by handle (filtered by userId)
+  const person = await db.person.findFirst({
+    where: { 
+      userId, // Multi-tenant filter
+      handle 
+    },
   });
 
   if (!person) {

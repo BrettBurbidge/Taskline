@@ -1,20 +1,29 @@
-import { json } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import type { RequestHandler } from './$types';
 
 // GET /api/people - fetch all people (optionally filtered by query)
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+  
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   const query = url.searchParams.get('query');
 
-  const where = query
-    ? {
-        OR: [
-          { handle: { contains: query, mode: 'insensitive' as const } },
-          { displayName: { contains: query, mode: 'insensitive' as const } },
-          { email: { contains: query, mode: 'insensitive' as const } },
-        ],
-      }
-    : {};
+  const where: any = {
+    userId, // Filter by user
+  };
+  
+  if (query) {
+    where.OR = [
+      { handle: { contains: query, mode: 'insensitive' as const } },
+      { displayName: { contains: query, mode: 'insensitive' as const } },
+      { email: { contains: query, mode: 'insensitive' as const } },
+    ];
+  }
 
   const people = await db.person.findMany({
     where,
@@ -25,11 +34,19 @@ export const GET: RequestHandler = async ({ url }) => {
 };
 
 // POST /api/people - create a new person
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+  
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   const data = await request.json();
 
   const person = await db.person.create({
     data: {
+      userId, // Multi-tenant isolation
       handle: data.handle,
       displayName: data.displayName,
       email: data.email || null,

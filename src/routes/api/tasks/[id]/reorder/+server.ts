@@ -4,14 +4,24 @@ import { dateStringToUTC, getStartOfDayUTC } from '$lib/utils/timezone';
 import type { RequestHandler } from './$types';
 
 // POST /api/tasks/:id/reorder - move task up or down
-export const POST: RequestHandler = async ({ params, request }) => {
+export const POST: RequestHandler = async ({ params, request, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+  
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   const { direction, targetDate, timezone } = await request.json();
 
   // Get timezone for date conversion (fallback to default if not provided)
   const tz = timezone || process.env.DEFAULT_TIMEZONE || 'America/Denver';
 
-  const task = await db.task.findUnique({
-    where: { id: params.id },
+  const task = await db.task.findFirst({
+    where: { 
+      id: params.id,
+      userId, // Verify ownership
+    },
     select: { id: true, boardDate: true, dueAt: true, sortOrder: true },
   });
 
@@ -41,9 +51,10 @@ export const POST: RequestHandler = async ({ params, request }) => {
     });
   }
 
-  // Get all tasks on the same board date
+  // Get all tasks on the same board date for this user
   const tasksOnDate = await db.task.findMany({
     where: {
+      userId, // Filter by user
       boardDate: targetBoardDate,
       status: { in: ['not_started', 'in_progress', 'waiting'] },
     },

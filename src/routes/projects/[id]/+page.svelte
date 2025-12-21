@@ -272,19 +272,19 @@
 						</div>
 					{/if}
 
-					<p class="text-gray-700 mb-4">
-						{#if data.tasksByStatus.active.length > 0}
-							Closing this project will:
-							<ul class="list-disc list-inside mt-2 space-y-1 text-sm">
-								<li>Mark the project as closed</li>
-								<li>Keep all tasks (they won't be affected)</li>
-								<li>Mark all pending follow-ups for tasks in this project as completed</li>
-								<li>Move the project to the Completed Projects archive</li>
-							</ul>
-						{:else}
-							This project has no active tasks. Closing it will archive it in the Completed Projects section.
-						{/if}
-					</p>
+				<div class="text-gray-700 mb-4">
+					{#if data.tasksByStatus.active.length > 0}
+						<p>Closing this project will:</p>
+						<ul class="list-disc list-inside mt-2 space-y-1 text-sm">
+							<li>Mark the project as closed</li>
+							<li>Keep all tasks (they won't be affected)</li>
+							<li>Mark all pending follow-ups for tasks in this project as completed</li>
+							<li>Move the project to the Completed Projects archive</li>
+						</ul>
+					{:else}
+						<p>This project has no active tasks. Closing it will archive it in the Completed Projects section.</p>
+					{/if}
+				</div>
 
 					<div class="flex gap-3 justify-end">
 						<button

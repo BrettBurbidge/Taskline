@@ -621,9 +621,9 @@
                 </div>
 
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-2">
+                  <div class="block text-sm font-medium text-gray-700 mb-2">
                     Stakeholders
-                  </label>
+                  </div>
                   <div class="flex flex-wrap gap-2">
                     {#each data.people.filter((p) => p.id !== data.task.accountablePersonId) as person}
                       <button

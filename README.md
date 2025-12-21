@@ -1,8 +1,18 @@
 # Taskline - Personal AI Project Assistant
 
-Taskline is a lightweight, single-user task and follow-up system designed to help manage commitments, delegation, and ongoing communication across many concurrent projects, meetings, and conversations. The product focuses on accountability, follow-up, and daily execution, rather than traditional project management.
+Taskline is a lightweight, multi-user task and follow-up system designed to help manage commitments, delegation, and ongoing communication across many concurrent projects, meetings, and conversations. The product focuses on accountability, follow-up, and daily execution, rather than traditional project management.
+
+**New in v2.0**: Multi-user support with Supabase authentication! Each user gets their own isolated workspace with secure login, registration, and password reset functionality.
 
 ## Features
+
+### 🔐 Authentication & Multi-User
+
+- **Secure User Authentication**: Powered by Supabase Auth
+- **User Registration**: Create new accounts with email verification
+- **Password Management**: Forgot password and reset functionality
+- **Multi-Tenant Isolation**: Each user's data is completely isolated
+- **Production Ready**: Deploy to Vercel with Supabase in minutes
 
 ### ✅ Core Task Management
 
@@ -65,18 +75,28 @@ Taskline is a lightweight, single-user task and follow-up system designed to hel
 
 - **Frontend**: SvelteKit + Svelte 5 + TypeScript
 - **Styling**: Tailwind CSS
-- **Database**: PostgreSQL (via Docker)
+- **Authentication**: Supabase Auth
+- **Database**: PostgreSQL (Supabase for production, Docker for local)
 - **ORM**: Prisma v7
+- **Hosting**: Vercel (production)
 - **AI**: OpenAI GPT-4 (optional)
 - **Date Handling**: date-fns
 - **Validation**: Zod
 
 ## Setup
 
-### Prerequisites
+### Two Setup Options
+
+**Option A: Production Setup (Supabase + Vercel)** - Recommended for deployment
+- See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for complete production setup guide
+
+**Option B: Local Development (Docker)** - For development without Supabase
+- Requires Docker and Docker Compose
+
+### Prerequisites (Local Development)
 
 - Node.js 18+ and npm
-- Docker and Docker Compose (for PostgreSQL)
+- Docker and Docker Compose (for local PostgreSQL)
 
 ### Installation
 
@@ -282,6 +302,20 @@ This project follows a feature-branch workflow with Docker deployment:
 
 This ensures each feature is isolated during development and the production environment is rebuilt with the latest changes after merging.
 
+### Database Query Migration
+
+If migrating from single-user to multi-user, all database queries need to be updated to filter by `userId`. See **[MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)** for detailed instructions and patterns.
+
+**Quick example:**
+```typescript
+// Before (single-user)
+const tasks = await db.task.findMany({ where: { status: 'active' } });
+
+// After (multi-user)
+const userId = locals.user?.id;
+const tasks = await db.task.findMany({ where: { userId, status: 'active' } });
+```
+
 ### Project Structure
 
 ```
@@ -322,8 +356,19 @@ prisma/
 - [x] Week view and project management
 - [x] AI assistance for task parsing (optional)
 
-### v2 Ideas
+### v2.0 Complete ✅
 
+- [x] Multi-user authentication (Supabase)
+- [x] User registration and login
+- [x] Password reset functionality
+- [x] Multi-tenant data isolation
+- [x] Production deployment (Vercel)
+- [x] Database migrations for multi-user
+
+### v2.1 Ideas
+
+- [ ] Complete database query migration (see MIGRATION_GUIDE.md)
+- [ ] Row Level Security (RLS) setup in Supabase
 - [ ] Task detail modal/page
 - [ ] Advanced filtering and search
 - [ ] Context notes UI (add/edit)
@@ -333,8 +378,8 @@ prisma/
 - [ ] Email integration for follow-ups
 - [ ] Mobile responsive improvements
 - [ ] Dark mode
-- [ ] Multi-user support (future)
 - [ ] Calendar sync (Google Cal, Outlook)
+- [ ] Team collaboration features
 
 ## Contributing
 

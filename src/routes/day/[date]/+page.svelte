@@ -401,8 +401,15 @@
 {#if showFollowUpNoteModal}
   <div
     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    role="dialog"
+    aria-modal="true"
     onclick={(e) => {
       if (e.target === e.currentTarget) {
+        showFollowUpNoteModal = false;
+      }
+    }}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') {
         showFollowUpNoteModal = false;
       }
     }}
@@ -419,7 +426,6 @@
         placeholder="e.g., 'Discussed timeline with client, agreed on 2-week extension' or 'No response yet, will follow up again'"
         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
         rows="4"
-        autofocus
       ></textarea>
       <div class="flex gap-2 mt-4">
         <button

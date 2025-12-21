@@ -1,9 +1,32 @@
-import { json } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import type { RequestHandler } from './$types';
 
 // POST /api/followups/:id/complete - mark follow-up as complete
-export const POST: RequestHandler = async ({ params, request }) => {
+export const POST: RequestHandler = async ({ params, request, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
+  // First, verify the follow-up belongs to this user
+  const existingFollowUp = await db.followUp.findUnique({
+    where: { id: params.id },
+    include: {
+      task: true,
+    },
+  });
+
+  if (!existingFollowUp) {
+    throw error(404, 'Follow-up not found');
+  }
+
+  if (existingFollowUp.task.userId !== userId) {
+    throw error(403, 'Access denied');
+  }
+
   const body = await request.json().catch(() => ({}));
   const { notes } = body;
 

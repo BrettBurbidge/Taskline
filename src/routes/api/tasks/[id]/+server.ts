@@ -3,9 +3,19 @@ import { db } from '$lib/db';
 import type { RequestHandler } from './$types';
 
 // GET /api/tasks/:id - fetch single task
-export const GET: RequestHandler = async ({ params }) => {
-  const task = await db.task.findUnique({
-    where: { id: params.id },
+export const GET: RequestHandler = async ({ params, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+  
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
+  const task = await db.task.findFirst({
+    where: { 
+      id: params.id,
+      userId, // Verify ownership
+    },
     include: {
       project: true,
       accountablePerson: true,
@@ -35,11 +45,21 @@ export const GET: RequestHandler = async ({ params }) => {
 };
 
 // PATCH /api/tasks/:id - update task
-export const PATCH: RequestHandler = async ({ params, request }) => {
+export const PATCH: RequestHandler = async ({ params, request, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+  
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   const data = await request.json();
 
   const task = await db.task.update({
-    where: { id: params.id },
+    where: { 
+      id: params.id,
+      userId, // Verify ownership
+    },
     data: {
       ...data,
       dueAt: data.dueAt ? new Date(data.dueAt) : undefined,
@@ -62,9 +82,19 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 };
 
 // DELETE /api/tasks/:id - delete task
-export const DELETE: RequestHandler = async ({ params }) => {
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+  
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   await db.task.delete({
-    where: { id: params.id },
+    where: { 
+      id: params.id,
+      userId, // Verify ownership
+    },
   });
 
   return json({ success: true });

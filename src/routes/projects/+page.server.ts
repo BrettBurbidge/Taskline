@@ -1,9 +1,20 @@
 import { db } from '$lib/db';
+import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   const projects = await db.project.findMany({
-    where: { isActive: true },
+    where: { 
+      userId, // Multi-tenant filter
+      isActive: true 
+    },
     include: {
       tasks: {
         where: {

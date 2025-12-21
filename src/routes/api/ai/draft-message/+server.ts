@@ -1,10 +1,17 @@
-import { json } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import { draftMessage, isAIAvailable } from '$lib/services/ai';
 import { db } from '$lib/db';
 import type { RequestHandler } from './$types';
 
 // POST /api/ai/draft-message - draft a message for follow-up
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   if (!isAIAvailable()) {
     return json(
       { error: 'AI assistance not configured. Set OPENAI_API_KEY environment variable.' },
@@ -14,14 +21,20 @@ export const POST: RequestHandler = async ({ request }) => {
 
   const { taskId, targetPersonId, channel, intent } = await request.json();
 
-  // Fetch task and target person
+  // Fetch task and target person (verify they belong to this user)
   const [task, person] = await Promise.all([
-    db.task.findUnique({
-      where: { id: taskId },
+    db.task.findFirst({
+      where: { 
+        id: taskId,
+        userId 
+      },
       include: { project: true },
     }),
-    db.person.findUnique({
-      where: { id: targetPersonId },
+    db.person.findFirst({
+      where: { 
+        id: targetPersonId,
+        userId 
+      },
     }),
   ]);
 

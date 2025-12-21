@@ -1,5 +1,5 @@
 // This is your Prisma schema file
-// Papa - Personal AI Project Assistant
+// Taskline - Personal AI Project Assistant
 
 generator client {
   provider = "prisma-client-js"
@@ -10,11 +10,29 @@ datasource db {
 }
 
 // ============================================================================
+// USER (Managed by Supabase Auth)
+// ============================================================================
+model User {
+  id        String   @id // Supabase auth.users.id
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  people   Person[]
+  projects Project[]
+  tasks    Task[]
+
+  @@map("user")
+}
+
+// ============================================================================
 // PERSON
 // ============================================================================
 model Person {
   id          String   @id @default(uuid())
-  handle      String   @unique // e.g., "brett", "steen"
+  userId      String   @map("user_id") // Multi-tenant isolation
+  handle      String // e.g., "brett", "steen"
   displayName String   @map("display_name")
   email       String?
   source      String   @default("manual") // "manual", "import"
@@ -22,11 +40,14 @@ model Person {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   accountableTasks   Task[]        @relation("AccountablePerson")
   executorTasks      Task[]        @relation("ExecutorPerson")
   stakeholderOn      Stakeholder[]
   followUpsTargeting FollowUp[]    @relation("FollowUpTargetPerson")
 
+  @@unique([userId, handle]) // Handle must be unique per user
+  @@index([userId])
   @@map("person")
 }
 
@@ -35,6 +56,7 @@ model Person {
 // ============================================================================
 model Project {
   id          String    @id @default(uuid())
+  userId      String    @map("user_id") // Multi-tenant isolation
   name        String
   description String?
   dueAt       DateTime? @map("due_at") // informational only in v1
@@ -43,9 +65,11 @@ model Project {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks        Task[]
   contextNotes ContextNote[]
 
+  @@index([userId])
   @@map("project")
 }
 
@@ -54,6 +78,7 @@ model Project {
 // ============================================================================
 model Task {
   id          String    @id @default(uuid())
+  userId      String    @map("user_id") // Multi-tenant isolation
   title       String
   description String?
   status      String    @default("not_started") // not_started, in_progress, waiting, completed, cancelled
@@ -71,6 +96,7 @@ model Task {
   executorPersonId    String? @map("executor_person_id")
 
   // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   project           Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   accountablePerson Person   @relation("AccountablePerson", fields: [accountablePersonId], references: [id])
   executorPerson    Person?  @relation("ExecutorPerson", fields: [executorPersonId], references: [id])
@@ -81,6 +107,7 @@ model Task {
   contextNotes  ContextNote[]
   activities    TaskActivity[]
 
+  @@index([userId])
   @@index([boardDate, sortOrder])
   @@index([dueAt])
   @@index([status])

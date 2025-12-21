@@ -26,6 +26,7 @@ export type TaskSuggestion = z.infer<typeof TaskSuggestionSchema>;
 interface SuggestTaskOptions {
   inputText: string;
   currentDate: Date;
+  userId: string; // For multi-tenant context
   knownPeople?: Array<{ handle: string; displayName: string }>;
   knownProjects?: Array<{ id: string; name: string }>;
 }
@@ -39,7 +40,7 @@ export async function suggestTask(options: SuggestTaskOptions): Promise<TaskSugg
     return null;
   }
 
-  const { inputText, currentDate, knownPeople = [], knownProjects = [] } = options;
+  const { inputText, currentDate, userId, knownPeople = [], knownProjects = [] } = options;
 
   const systemPrompt = `You are an AI assistant that helps parse task descriptions and suggest structured task data.
 
@@ -202,6 +203,7 @@ export type AudioTranscriptionResult = z.infer<typeof AudioTranscriptionSchema>;
 interface TranscribeAudioOptions {
   audioFile: File;
   currentDate: Date;
+  userId: string; // For multi-tenant context
   knownPeople?: Array<{ handle: string; displayName: string }>;
   knownProjects?: Array<{ id: string; name: string }>;
 }
@@ -217,7 +219,7 @@ export async function transcribeAudioAndExtractTasks(
     return null;
   }
 
-  const { audioFile, currentDate, knownPeople = [], knownProjects = [] } = options;
+  const { audioFile, currentDate, userId, knownPeople = [], knownProjects = [] } = options;
 
   try {
     // Step 1: Transcribe audio using Whisper API

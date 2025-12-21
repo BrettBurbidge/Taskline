@@ -3,9 +3,19 @@ import { db } from '$lib/db';
 import type { RequestHandler } from './$types';
 
 // POST /api/tasks/:id/complete - mark task as complete
-export const POST: RequestHandler = async ({ params }) => {
+export const POST: RequestHandler = async ({ params, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+  
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   const task = await db.task.update({
-    where: { id: params.id },
+    where: { 
+      id: params.id,
+      userId, // Verify ownership
+    },
     data: {
       status: 'completed',
       completedAt: new Date(),

@@ -3,9 +3,19 @@ import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { dateStringToUTC } from '$lib/utils/timezone';
 
-export const load: PageServerLoad = async ({ params }) => {
-  const task = await db.task.findUnique({
-    where: { id: params.id },
+export const load: PageServerLoad = async ({ params, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
+  const task = await db.task.findFirst({
+    where: { 
+      id: params.id,
+      userId, // Multi-tenant filter
+    },
     include: {
       project: true,
       accountablePerson: true,
@@ -49,13 +59,17 @@ export const load: PageServerLoad = async ({ params }) => {
     },
   });
 
-  // Fetch available people and projects for editing
+  // Fetch available people and projects for editing (filtered by userId)
   const [people, projects] = await Promise.all([
     db.person.findMany({
+      where: { userId },
       orderBy: { handle: 'asc' },
     }),
     db.project.findMany({
-      where: { isActive: true },
+      where: { 
+        userId,
+        isActive: true 
+      },
       orderBy: { name: 'asc' },
     }),
   ]);
@@ -69,7 +83,26 @@ export const load: PageServerLoad = async ({ params }) => {
 };
 
 export const actions: Actions = {
-  update: async ({ request, params }) => {
+  update: async ({ request, params, locals }) => {
+    // Get authenticated user
+    const userId = locals.user?.id;
+
+    if (!userId) {
+      throw error(401, 'Unauthorized');
+    }
+
+    // Verify task belongs to this user
+    const existingTask = await db.task.findFirst({
+      where: { 
+        id: params.id,
+        userId 
+      },
+    });
+
+    if (!existingTask) {
+      throw error(404, 'Task not found or access denied');
+    }
+
     const formData = await request.formData();
     
     const title = formData.get('title') as string;
@@ -116,7 +149,26 @@ export const actions: Actions = {
     return { success: true };
   },
 
-  delete: async ({ params }) => {
+  delete: async ({ params, locals }) => {
+    // Get authenticated user
+    const userId = locals.user?.id;
+
+    if (!userId) {
+      throw error(401, 'Unauthorized');
+    }
+
+    // Verify task belongs to this user
+    const task = await db.task.findFirst({
+      where: { 
+        id: params.id,
+        userId 
+      },
+    });
+
+    if (!task) {
+      throw error(404, 'Task not found or access denied');
+    }
+
     await db.task.delete({
       where: { id: params.id },
     });
@@ -124,7 +176,26 @@ export const actions: Actions = {
     throw redirect(303, '/board');
   },
 
-  addNote: async ({ request, params }) => {
+  addNote: async ({ request, params, locals }) => {
+    // Get authenticated user
+    const userId = locals.user?.id;
+
+    if (!userId) {
+      throw error(401, 'Unauthorized');
+    }
+
+    // Verify task belongs to this user
+    const task = await db.task.findFirst({
+      where: { 
+        id: params.id,
+        userId 
+      },
+    });
+
+    if (!task) {
+      throw error(404, 'Task not found or access denied');
+    }
+
     const formData = await request.formData();
     const content = formData.get('content') as string;
 

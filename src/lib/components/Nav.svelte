@@ -1,6 +1,17 @@
 <script lang="ts">
   import { page } from "$app/stores";
 
+  interface User {
+    id: string;
+    email: string | undefined;
+  }
+
+  interface Props {
+    user?: User | null;
+  }
+
+  let { user }: Props = $props();
+
   const navItems = [
     { href: "/inbox", label: "Inbox", icon: "📥" },
     { href: "/board", label: "Daily Board", icon: "📋" },
@@ -34,7 +45,17 @@
       </div>
 
       <div class="flex items-center space-x-4">
-        <span class="text-sm text-gray-600">@brett</span>
+        {#if user}
+          <span class="text-sm text-gray-600">{user.email}</span>
+          <form method="POST" action="/auth/logout" class="inline">
+            <button
+              type="submit"
+              class="text-sm text-gray-600 hover:text-gray-900 underline"
+            >
+              Logout
+            </button>
+          </form>
+        {/if}
       </div>
     </div>
   </div>

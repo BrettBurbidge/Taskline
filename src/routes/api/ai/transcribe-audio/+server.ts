@@ -1,10 +1,17 @@
-import { json } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import { transcribeAudioAndExtractTasks, isAIAvailable } from '$lib/services/ai';
 import { db } from '$lib/db';
 import type { RequestHandler } from './$types';
 
 // POST /api/ai/transcribe-audio - transcribe audio and extract tasks
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   if (!isAIAvailable()) {
     return json(
       { error: 'AI assistance not configured. Set OPENAI_API_KEY environment variable.' },
@@ -21,14 +28,18 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'No audio file provided' }, { status: 400 });
     }
 
-    // Fetch known people and projects for context
+    // Fetch known people and projects for context (filtered by userId)
     const [people, projects] = await Promise.all([
       db.person.findMany({
+        where: { userId },
         select: { handle: true, displayName: true },
         orderBy: { handle: 'asc' },
       }),
       db.project.findMany({
-        where: { isActive: true },
+        where: { 
+          userId,
+          isActive: true 
+        },
         select: { id: true, name: true },
         orderBy: { name: 'asc' },
       }),
@@ -37,6 +48,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const result = await transcribeAudioAndExtractTasks({
       audioFile,
       currentDate: currentDateStr ? new Date(currentDateStr) : new Date(),
+      userId,
       knownPeople: people,
       knownProjects: projects,
     });

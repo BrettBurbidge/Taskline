@@ -11,7 +11,7 @@
 	let description = $state('');
 	let dueAt = $state('');
 	let projectId = $state('');
-	let executorPersonId = $state('');
+	let executorPersonId = $state(data.currentUser?.id || '');
 	let selectedStakeholders = $state<string[]>([]);
 	let showDetails = $state(false);
 	let isSubmitting = $state(false);
@@ -210,21 +210,23 @@
 				}
 			}
 
-			// Step 3: Determine executor
-			let finalExecutorId = executorPersonId || data.currentUser!.id;
-			
-			if (parsedMentions.executor) {
-				// Check if newly created
-				if (createdPeople.has(parsedMentions.executor)) {
-					finalExecutorId = createdPeople.get(parsedMentions.executor)!;
-				} else {
-					// Find in existing people
-					const person = data.people.find((p) => p.handle.toLowerCase() === parsedMentions.executor?.toLowerCase());
-					if (person) {
-						finalExecutorId = person.id;
-					}
+		// Step 3: Determine executor
+		// Default to selected executor (which defaults to current user)
+		let finalExecutorId = executorPersonId;
+		
+		// If @mention found for executor, it overrides the selection
+		if (parsedMentions.executor) {
+			// Check if newly created
+			if (createdPeople.has(parsedMentions.executor)) {
+				finalExecutorId = createdPeople.get(parsedMentions.executor)!;
+			} else {
+				// Find in existing people
+				const person = data.people.find((p) => p.handle.toLowerCase() === parsedMentions.executor?.toLowerCase());
+				if (person) {
+					finalExecutorId = person.id;
 				}
 			}
+		}
 
 			// Step 4: Determine due date (manual or parsed)
 			let finalDueAt = dueAt;
@@ -256,17 +258,17 @@
 				throw new Error('Failed to create task');
 			}
 
-			// Reset form
-			title = '';
-			description = '';
-			dueAt = '';
-			projectId = '';
-			executorPersonId = '';
-			selectedStakeholders = [];
-			showDetails = false;
+		// Reset form
+		title = '';
+		description = '';
+		dueAt = '';
+		projectId = '';
+		executorPersonId = data.currentUser?.id || '';
+		selectedStakeholders = [];
+		showDetails = false;
 
-			// Redirect to board
-			goto('/board');
+		// Redirect to board
+		goto('/board');
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Failed to create task';
 		} finally {
@@ -639,18 +641,18 @@
 				});
 			}
 
-			// Reset form and redirect
-			title = '';
-			description = '';
-			dueAt = '';
-			projectId = '';
-			executorPersonId = '';
-			selectedStakeholders = [];
-			showDetails = false;
-			transcribedTasks = [];
+		// Reset form and redirect
+		title = '';
+		description = '';
+		dueAt = '';
+		projectId = '';
+		executorPersonId = data.currentUser?.id || '';
+		selectedStakeholders = [];
+		showDetails = false;
+		transcribedTasks = [];
 
-			// Redirect to board
-			goto('/board');
+		// Redirect to board
+		goto('/board');
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Failed to create tasks from audio';
 		} finally {
@@ -912,22 +914,22 @@
 							</div>
 						</div>
 
-						<!-- Executor -->
-						<div>
-							<label for="executor" class="block text-sm font-medium text-gray-700 mb-2">
-								Who will execute this?
-							</label>
-							<select
-								id="executor"
-								bind:value={executorPersonId}
-								class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-							>
-								<option value="">Me ({data.currentUser?.displayName})</option>
-								{#each data.people.filter((p) => p.id !== data.currentUser?.id) as person}
-									<option value={person.id}>{person.displayName} (@{person.handle})</option>
-								{/each}
-							</select>
-						</div>
+					<!-- Executor -->
+					<div>
+						<label for="executor" class="block text-sm font-medium text-gray-700 mb-2">
+							Who will execute this?
+						</label>
+						<select
+							id="executor"
+							bind:value={executorPersonId}
+							class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+						>
+							<option value={data.currentUser?.id}>Me ({data.currentUser?.displayName})</option>
+							{#each data.people.filter((p) => p.id !== data.currentUser?.id) as person}
+								<option value={person.id}>{person.displayName} (@{person.handle})</option>
+							{/each}
+						</select>
+					</div>
 
 						<!-- Stakeholders -->
 						<div>

@@ -1,11 +1,18 @@
-import { json } from "@sveltejs/kit";
+import { json, error } from "@sveltejs/kit";
 import { db } from "$lib/db";
 import { startOfDay, addDays } from "date-fns";
 import { dateStringToUTC, getStartOfDayUTC } from "$lib/utils/timezone";
 import type { RequestHandler } from "./$types";
 
 // POST /api/board/rollover - move incomplete tasks to next day (smart rollover)
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, "Unauthorized");
+  }
+
   const { fromDate, toDate, timezone } = await request.json();
 
   // Get timezone for date conversion (fallback to default if not provided)
@@ -15,9 +22,10 @@ export const POST: RequestHandler = async ({ request }) => {
   const from = dateStringToUTC(fromDate, tz);
   const to = dateStringToUTC(toDate, tz);
 
-  // Find all incomplete tasks scheduled for fromDate
+  // Find all incomplete tasks scheduled for fromDate (filtered by userId)
   const tasksToRollover = await db.task.findMany({
     where: {
+      userId, // Multi-tenant filter
       boardDate: from,
       status: { in: ["not_started", "in_progress", "waiting"] },
     },

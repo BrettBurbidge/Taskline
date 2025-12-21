@@ -2,9 +2,19 @@ import { db } from '$lib/db';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
-  const project = await db.project.findUnique({
-    where: { id: params.id },
+export const load: PageServerLoad = async ({ params, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
+  const project = await db.project.findFirst({
+    where: { 
+      id: params.id,
+      userId, // Multi-tenant filter
+    },
     include: {
       tasks: {
         where: {
@@ -43,9 +53,10 @@ export const load: PageServerLoad = async ({ params }) => {
     completed: project.tasks.filter((t) => t.status === 'completed'),
   };
 
-  // Get all other projects (for reassignment when deleting)
+  // Get all other projects (for reassignment when deleting, filtered by userId)
   const otherProjects = await db.project.findMany({
     where: {
+      userId, // Multi-tenant filter
       id: { not: params.id },
       isActive: true,
     },

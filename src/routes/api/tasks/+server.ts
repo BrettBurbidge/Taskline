@@ -1,17 +1,26 @@
-import { json } from '@sveltejs/kit';
-import { db } from '$lib/db';
-import { dateStringToUTC } from '$lib/utils/timezone';
-import { generateForTask } from '$lib/services/followupEngine';
-import type { RequestHandler } from './$types';
+import { json, error } from "@sveltejs/kit";
+import { db } from "$lib/db";
+import { dateStringToUTC } from "$lib/utils/timezone";
+import { generateForTask } from "$lib/services/followupEngine";
+import type { RequestHandler } from "./$types";
 
 // GET /api/tasks - fetch tasks with optional filters
-export const GET: RequestHandler = async ({ url }) => {
-  const boardDate = url.searchParams.get('boardDate');
-  const dueFrom = url.searchParams.get('dueFrom');
-  const dueTo = url.searchParams.get('dueTo');
-  const projectId = url.searchParams.get('projectId');
+export const GET: RequestHandler = async ({ url, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
 
-  const where: any = {};
+  if (!userId) {
+    throw error(401, "Unauthorized");
+  }
+
+  const boardDate = url.searchParams.get("boardDate");
+  const dueFrom = url.searchParams.get("dueFrom");
+  const dueTo = url.searchParams.get("dueTo");
+  const projectId = url.searchParams.get("projectId");
+
+  const where: any = {
+    userId, // Multi-tenant filter
+  };
 
   if (boardDate) {
     where.boardDate = new Date(boardDate);
@@ -39,14 +48,25 @@ export const GET: RequestHandler = async ({ url }) => {
         },
       },
     },
-    orderBy: [{ boardDate: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+    orderBy: [
+      { boardDate: "asc" },
+      { sortOrder: "asc" },
+      { createdAt: "desc" },
+    ],
   });
 
   return json(tasks);
 };
 
 // POST /api/tasks - create a new task
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, "Unauthorized");
+  }
+
   const data = await request.json();
 
   const {
@@ -63,13 +83,13 @@ export const POST: RequestHandler = async ({ request }) => {
   } = data;
 
   // Get timezone for date conversion (fallback to default if not provided)
-  const tz = timezone || process.env.DEFAULT_TIMEZONE || 'America/Denver';
+  const tz = timezone || process.env.DEFAULT_TIMEZONE || "America/Denver";
 
   // Parse dates using timezone utilities for consistency
   let parsedDueAt: Date | null = null;
   if (dueAt) {
-    const dateStr = typeof dueAt === 'string' ? dueAt : dueAt.toISOString();
-    if (dateStr.includes('T')) {
+    const dateStr = typeof dueAt === "string" ? dueAt : dueAt.toISOString();
+    if (dateStr.includes("T")) {
       // Already has time component (ISO string)
       parsedDueAt = new Date(dateStr);
     } else {
@@ -80,8 +100,9 @@ export const POST: RequestHandler = async ({ request }) => {
 
   let parsedBoardDate: Date | null = null;
   if (boardDate) {
-    const dateStr = typeof boardDate === 'string' ? boardDate : boardDate.toISOString();
-    if (dateStr.includes('T')) {
+    const dateStr =
+      typeof boardDate === "string" ? boardDate : boardDate.toISOString();
+    if (dateStr.includes("T")) {
       // Already has time component
       parsedBoardDate = new Date(dateStr);
     } else {
@@ -93,6 +114,7 @@ export const POST: RequestHandler = async ({ request }) => {
   // Create the task
   const task = await db.task.create({
     data: {
+      userId, // Multi-tenant isolation
       title,
       description,
       dueAt: parsedDueAt,
@@ -101,7 +123,7 @@ export const POST: RequestHandler = async ({ request }) => {
       executorPersonId: executorPersonId || accountablePersonId,
       boardDate: parsedBoardDate,
       priority: priority || null,
-      status: 'not_started',
+      status: "not_started",
       stakeholders: {
         create: stakeholderPersonIds.map((personId: string) => ({
           personId,
@@ -122,12 +144,11 @@ export const POST: RequestHandler = async ({ request }) => {
 
   // Auto-generate follow-ups for the newly created task
   try {
-    await generateForTask(task.id, new Date(), tz);
+    await generateForTask(task.id, userId, new Date(), tz);
   } catch (error) {
     // Log error but don't fail task creation
-    console.error('Failed to auto-generate follow-ups:', error);
+    console.error("Failed to auto-generate follow-ups:", error);
   }
 
   return json(task, { status: 201 });
 };
-

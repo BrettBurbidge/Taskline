@@ -6,7 +6,7 @@
   import { browser } from "$app/environment";
   import { getUserTimezone } from "$lib/utils/timezone";
 
-  let { children } = $props();
+  let { children, data } = $props();
 
   // Set timezone cookie for server-side date calculations
   if (browser) {
@@ -22,7 +22,7 @@
 
 <div class="min-h-screen bg-gray-50">
   {#if $page.url.pathname !== "/"}
-    <Nav />
+    <Nav user={data.user} />
   {/if}
   {@render children()}
 </div>

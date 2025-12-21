@@ -1,9 +1,17 @@
 import { db } from "$lib/db";
 import { addDays } from "date-fns";
 import { getStartOfDayUTC, getTodayString } from "$lib/utils/timezone";
+import { error } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+  
+  if (!userId) {
+    throw error(401, "Unauthorized");
+  }
+
   // Get user's timezone from cookie (set by client) or use default
   const userTimezone =
     cookies.get("user_timezone") ||
@@ -14,11 +22,12 @@ export const load: PageServerLoad = async ({ cookies }) => {
   const today = getStartOfDayUTC(new Date(), userTimezone);
   const tomorrow = addDays(today, 1);
 
-  // Fetch all tasks relevant to today:
+  // Fetch all tasks relevant to today (filtered by userId for multi-tenant isolation)
   // - Active tasks: with boardDate = today OR dueAt on/before today
   // - Completed tasks: ONLY if dueAt is today
   const tasks = await db.task.findMany({
     where: {
+      userId, // Multi-tenant filter
       OR: [
         // Active tasks scheduled for today
         {
@@ -80,9 +89,12 @@ export const load: PageServerLoad = async ({ cookies }) => {
     return b.createdAt.getTime() - a.createdAt.getTime();
   });
 
-  // Fetch follow-ups due today
+  // Fetch follow-ups due today (filtered through task's userId)
   const followUps = await db.followUp.findMany({
     where: {
+      task: {
+        userId, // Multi-tenant filter through relation
+      },
       dueAt: {
         gte: today,
         lt: tomorrow,

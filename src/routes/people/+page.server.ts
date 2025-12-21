@@ -1,9 +1,17 @@
 import { db } from '$lib/db';
-import { fail } from '@sveltejs/kit';
+import { fail, error } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals }) => {
+  // Get authenticated user
+  const userId = locals.user?.id;
+
+  if (!userId) {
+    throw error(401, 'Unauthorized');
+  }
+
   const people = await db.person.findMany({
+    where: { userId }, // Multi-tenant filter
     orderBy: { handle: 'asc' },
     include: {
       _count: {
@@ -22,7 +30,14 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions: Actions = {
-  create: async ({ request }) => {
+  create: async ({ request, locals }) => {
+    // Get authenticated user
+    const userId = locals.user?.id;
+
+    if (!userId) {
+      throw error(401, 'Unauthorized');
+    }
+
     const formData = await request.formData();
     const handle = (formData.get('handle') as string).toLowerCase().trim();
     const displayName = formData.get('displayName') as string;
@@ -32,14 +47,20 @@ export const actions: Actions = {
       return fail(400, { error: 'Handle and display name are required' });
     }
 
-    // Check if handle already exists
-    const existing = await db.person.findUnique({ where: { handle } });
+    // Check if handle already exists for this user
+    const existing = await db.person.findFirst({ 
+      where: { 
+        userId,
+        handle 
+      } 
+    });
     if (existing) {
       return fail(400, { error: 'Handle already exists' });
     }
 
     await db.person.create({
       data: {
+        userId, // Multi-tenant isolation
         handle,
         displayName,
         email: email || null,
@@ -50,11 +71,30 @@ export const actions: Actions = {
     return { success: true };
   },
 
-  update: async ({ request }) => {
+  update: async ({ request, locals }) => {
+    // Get authenticated user
+    const userId = locals.user?.id;
+
+    if (!userId) {
+      throw error(401, 'Unauthorized');
+    }
+
     const formData = await request.formData();
     const id = formData.get('id') as string;
     const displayName = formData.get('displayName') as string;
     const email = formData.get('email') as string;
+
+    // Verify person belongs to this user
+    const person = await db.person.findFirst({
+      where: { 
+        id,
+        userId 
+      },
+    });
+
+    if (!person) {
+      return fail(404, { error: 'Person not found or access denied' });
+    }
 
     await db.person.update({
       where: { id },
@@ -67,13 +107,23 @@ export const actions: Actions = {
     return { success: true };
   },
 
-  delete: async ({ request }) => {
+  delete: async ({ request, locals }) => {
+    // Get authenticated user
+    const userId = locals.user?.id;
+
+    if (!userId) {
+      throw error(401, 'Unauthorized');
+    }
+
     const formData = await request.formData();
     const id = formData.get('id') as string;
 
-    // Check if person is used in any tasks
-    const person = await db.person.findUnique({
-      where: { id },
+    // Check if person belongs to this user and is used in any tasks
+    const person = await db.person.findFirst({
+      where: { 
+        id,
+        userId 
+      },
       include: {
         _count: {
           select: {
