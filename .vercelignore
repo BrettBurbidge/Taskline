@@ -1,0 +1,48 @@
+# Vercel ignore file - exclude unnecessary files from deployment
+
+# Development files
+.env
+.env.local
+.env.*.local
+
+# Node modules (Vercel installs these)
+node_modules/
+
+# Build artifacts
+.svelte-kit/
+build/
+.output/
+
+# Testing
+coverage/
+*.test.ts
+*.spec.ts
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker (not needed for Vercel)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Prisma seed (not needed in production)
+prisma/seed.ts
+
