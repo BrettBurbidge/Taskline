@@ -2,6 +2,7 @@ import { json, error } from "@sveltejs/kit";
 import { db } from "$lib/db";
 import { startOfDay, addDays } from "date-fns";
 import { dateStringToUTC, getStartOfDayUTC } from "$lib/utils/timezone";
+import { generateForTask } from "$lib/services/followupEngine";
 import type { RequestHandler } from "./$types";
 
 // POST /api/board/rollover - move incomplete tasks to next day (smart rollover)
@@ -46,12 +47,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       sortOrder: null, // Reset sort order
     };
 
+    let dueDateChanged = false;
+
     // If task has a dueAt that's today or earlier (overdue), move the due date too
     if (task.dueAt) {
       const taskDueDate = getStartOfDayUTC(new Date(task.dueAt), tz);
       if (taskDueDate <= fromDayStart) {
         // Task is due today or overdue - move the due date forward too
         updates.dueAt = to;
+        dueDateChanged = true;
       }
     }
 
@@ -59,6 +63,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       where: { id: task.id },
       data: updates,
     });
+
+    // If due date changed, regenerate follow-ups
+    if (dueDateChanged) {
+      try {
+        await generateForTask(task.id, userId, new Date(), tz);
+      } catch (err) {
+        console.error('Failed to regenerate follow-ups for task:', task.id, err);
+        // Don't fail the rollover if follow-up generation fails
+      }
+    }
 
     count++;
   }

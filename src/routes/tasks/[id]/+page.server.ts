@@ -2,6 +2,7 @@ import { db } from '$lib/db';
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { dateStringToUTC } from '$lib/utils/timezone';
+import { generateForTask } from '$lib/services/followupEngine';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   // Get authenticated user
@@ -126,6 +127,10 @@ export const actions: Actions = {
       ? stakeholderPersonIdsStr.split(',').filter((id) => id.trim() !== '')
       : [];
 
+    // Store the old due date to compare
+    const oldDueAt = existingTask.dueAt ? new Date(existingTask.dueAt).getTime() : null;
+    const newDueAt = dueAt ? new Date(dueAt).getTime() : null;
+
     // Update task and stakeholders
     await db.task.update({
       where: { id: params.id },
@@ -145,6 +150,16 @@ export const actions: Actions = {
         },
       },
     });
+
+    // If due date changed, regenerate follow-ups
+    if (newDueAt !== oldDueAt) {
+      try {
+        await generateForTask(params.id, userId, new Date(), timezone);
+      } catch (err) {
+        console.error('Failed to regenerate follow-ups:', err);
+        // Don't fail the request if follow-up generation fails
+      }
+    }
 
     return { success: true };
   },

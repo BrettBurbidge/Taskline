@@ -745,7 +745,7 @@
 									{cleanedTitlePreview}
 								</div>
 								<div class="text-xs text-blue-700 mt-1">
-									Projects, dates, and @mentions will be automatically tagged
+									#Projects will be kept (without #), dates removed, @mentions capitalized
 				</div>
 							</div>
 						</div>
@@ -985,7 +985,7 @@
 				<li>• Press Enter to quickly create a task with just the title</li>
 				<li>• Use <code class="bg-blue-100 px-1 rounded">@name</code> to mention stakeholders</li>
 				<li>• Use <code class="bg-blue-100 px-1 rounded">→ @name</code> or <code class="bg-blue-100 px-1 rounded">assign to @name</code> to set executor</li>
-				<li>• Use <code class="bg-blue-100 px-1 rounded">#ProjectName</code> to assign to a project</li>
+				<li>• Use <code class="bg-blue-100 px-1 rounded">#ProjectName</code> to assign to a project (the # will be removed and name capitalized)</li>
 				<li>• Use <code class="bg-blue-100 px-1 rounded">#"Project Name"</code> for projects with spaces or special characters like <code class="bg-blue-100 px-1 rounded">/</code></li>
 				<li>• Type dates like <code class="bg-blue-100 px-1 rounded">Thursday</code>, <code class="bg-blue-100 px-1 rounded">next Monday</code>, or <code class="bg-blue-100 px-1 rounded">tomorrow</code> to auto-detect due dates</li>
 				<li>• New people and projects are auto-created from @mentions and #tags</li>

@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
+import { generateForTask } from '$lib/services/followupEngine';
 import type { RequestHandler } from './$types';
 
 // GET /api/tasks/:id - fetch single task
@@ -55,6 +56,19 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
   const data = await request.json();
 
+  // Fetch the existing task to compare dueAt
+  const existingTask = await db.task.findFirst({
+    where: { 
+      id: params.id,
+      userId,
+    },
+    select: { id: true, dueAt: true },
+  });
+
+  if (!existingTask) {
+    throw error(404, 'Task not found or access denied');
+  }
+
   const task = await db.task.update({
     where: { 
       id: params.id,
@@ -77,6 +91,20 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
       },
     },
   });
+
+  // If due date changed, regenerate follow-ups
+  const newDueAt = data.dueAt ? new Date(data.dueAt).getTime() : null;
+  const oldDueAt = existingTask.dueAt ? new Date(existingTask.dueAt).getTime() : null;
+  
+  if (newDueAt !== oldDueAt) {
+    // Regenerate follow-ups based on the new due date
+    try {
+      await generateForTask(task.id, userId, new Date(), data.timezone);
+    } catch (err) {
+      console.error('Failed to regenerate follow-ups:', err);
+      // Don't fail the request if follow-up generation fails
+    }
+  }
 
   return json(task);
 };
