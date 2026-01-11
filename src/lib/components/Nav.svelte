@@ -16,9 +16,7 @@
     { href: "/inbox", label: "Inbox", icon: "📥" },
     { href: "/board", label: "Daily Board", icon: "📋" },
     { href: "/week", label: "Week View", icon: "📅" },
-    { href: "/projects", label: "Projects", icon: "📁" },
-    { href: "/people", label: "People", icon: "👥" },
-    { href: "/completed", label: "Completed", icon: "✅" },
+    { href: "/dashboard", label: "Dashboard", icon: "📊" },
   ];
 </script>
 
