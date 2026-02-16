@@ -22,8 +22,26 @@ model User {
   people   Person[]
   projects Project[]
   tasks    Task[]
+  apiKeys  ApiKey[]
 
   @@map("user")
+}
+
+// ============================================================================
+// API KEY (Per-user keys for external API access)
+// ============================================================================
+model ApiKey {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  key        String    @unique
+  name       String    @default("Default")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastUsedAt DateTime? @map("last_used_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_key")
 }
 
 // ============================================================================

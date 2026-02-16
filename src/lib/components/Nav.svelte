@@ -45,6 +45,13 @@
       <div class="flex items-center space-x-4">
         {#if user}
           <span class="text-sm text-gray-600">{user.email}</span>
+          <a
+            href="/settings"
+            class="text-sm px-2 py-1 rounded transition-colors {$page.url.pathname === '/settings'
+              ? 'bg-blue-100 text-blue-700'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}"
+            title="Settings"
+          >Settings</a>
           <form method="POST" action="/auth/logout" class="inline">
             <button
               type="submit"

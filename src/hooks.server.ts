@@ -4,6 +4,35 @@ import { redirect } from "@sveltejs/kit";
 import { db } from "$lib/db";
 
 export const handle: Handle = async ({ event, resolve }) => {
+  // API v1 routes use per-user API key auth — skip Supabase entirely
+  if (event.url.pathname.startsWith("/api/v1/")) {
+    const key = event.request.headers.get("X-API-Key");
+    if (!key) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const apiKey = await db.apiKey.findUnique({
+      where: { key },
+      select: { userId: true, id: true },
+    });
+
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Track last usage (fire-and-forget)
+    db.apiKey.update({ where: { id: apiKey.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
+
+    event.locals.user = { id: apiKey.userId } as any;
+    return resolve(event);
+  }
+
   // Create Supabase client for this request
   event.locals.supabase = createSupabaseServerClient(event);
 
@@ -67,6 +96,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     "/projects",
     "/people",
     "/completed",
+    "/settings",
   ];
 
   // API routes that require auth (exclude auth endpoints)
