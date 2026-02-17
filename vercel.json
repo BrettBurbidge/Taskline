@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run test:unit && npm run check && npx prisma migrate deploy && npm run build",
+  "buildCommand": "vitest run && npm run check && npx prisma migrate deploy && npm run build",
   "framework": "sveltekit",
   "installCommand": "npm install"
 }
