@@ -1,13 +1,9 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { api, apiJson, skipIfNoKey } from "./setup";
+import { describe, it, expect } from "vitest";
+import { api, apiJson, shouldSkip } from "./setup";
 
-describe("API Keys Management", () => {
+describe.skipIf(shouldSkip)("API Keys Management", () => {
   let createdKeyId: string;
   let createdKeyValue: string;
-
-  beforeAll(() => {
-    if (skipIfNoKey() === "skip") return;
-  });
 
   it("POST /api/v1/api-keys — creates a new key", async () => {
     const { status, data } = await apiJson<any>("/api/v1/api-keys", {

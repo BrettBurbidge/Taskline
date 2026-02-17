@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { api, apiJson, skipIfNoKey } from "./setup";
+import { api, apiJson, shouldSkip } from "./setup";
 
-describe("Reports", () => {
+describe.skipIf(shouldSkip)("Reports", () => {
   let taskId: string;
 
   beforeAll(async () => {
-    if (skipIfNoKey() === "skip") return;
-
     // Create a test task so reports have data
     const { data } = await apiJson<any>("/api/v1/tasks", {
       method: "POST",

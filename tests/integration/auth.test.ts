@@ -1,10 +1,7 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { api, skipIfNoKey } from "./setup";
+import { describe, it, expect } from "vitest";
+import { api, shouldSkip } from "./setup";
 
-describe("API Key Authentication", () => {
-  beforeAll(() => {
-    if (skipIfNoKey() === "skip") return;
-  });
+describe.skipIf(shouldSkip)("API Key Authentication", () => {
 
   it("returns 401 without X-API-Key header", async () => {
     const res = await api("/api/v1/tasks", { key: null });

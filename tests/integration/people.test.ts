@@ -1,12 +1,8 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { api, apiJson, skipIfNoKey } from "./setup";
+import { describe, it, expect } from "vitest";
+import { api, apiJson, shouldSkip } from "./setup";
 
-describe("People CRUD", () => {
+describe.skipIf(shouldSkip)("People CRUD", () => {
   let personId: string;
-
-  beforeAll(() => {
-    if (skipIfNoKey() === "skip") return;
-  });
 
   it("POST /api/v1/people — creates a person", async () => {
     const { status, data } = await apiJson<any>("/api/v1/people", {

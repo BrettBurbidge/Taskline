@@ -12,6 +12,7 @@
 
 export const API_URL = process.env.API_URL ?? "http://localhost:5173";
 export const API_KEY = process.env.TEST_API_KEY ?? "";
+export const shouldSkip = !API_KEY;
 
 /**
  * Call in beforeAll() to skip the entire suite when no API key is available.
