@@ -15,8 +15,6 @@ build/
 
 # Testing
 coverage/
-*.test.ts
-*.spec.ts
 
 # Documentation
 docs/
