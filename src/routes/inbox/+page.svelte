@@ -1129,7 +1129,7 @@
 													if (index === -1) {
 														task.stakeholders = [...task.stakeholders, handle];
 													} else {
-														task.stakeholders = task.stakeholders.filter((h) => h !== handle);
+														task.stakeholders = task.stakeholders.filter((h: string) => h !== handle);
 													}
 												}}
 												class="px-3 py-1 rounded-full text-sm border transition-colors {(task.stakeholders || []).includes(
