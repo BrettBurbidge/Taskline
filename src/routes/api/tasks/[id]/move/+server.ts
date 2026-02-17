@@ -30,6 +30,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     },
     data: {
       boardDate: parsedBoardDate,
+      dueAt: parsedBoardDate,
       sortOrder: null, // Reset sort order when moving
     },
     include: {
