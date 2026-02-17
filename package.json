@@ -13,8 +13,8 @@
 		"postinstall": "prisma generate",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:unit": "vitest run src/",
-		"test:integration": "vitest run tests/"
+		"test:unit": "vitest run \"src/\"",
+		"test:integration": "vitest run \"tests/\""
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.0",
