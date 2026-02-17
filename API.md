@@ -364,6 +364,182 @@ DELETE /api/v1/people/:id
 
 ---
 
+## Projects
+
+### List Projects
+
+```
+GET /api/v1/projects
+```
+
+**Query Parameters:**
+
+| Param    | Type   | Default | Description                                     |
+| -------- | ------ | ------- | ----------------------------------------------- |
+| `active` | string | —       | Filter by active status: `true` or `false`      |
+| `limit`  | number | 50      | Page size (max 200)                              |
+| `offset` | number | 0       | Number of records to skip                        |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Project Name",
+      "description": "Optional description",
+      "isActive": true,
+      "dueAt": "2026-03-01T00:00:00.000Z",
+      "createdAt": "2026-01-15T00:00:00.000Z",
+      "updatedAt": "2026-01-15T00:00:00.000Z",
+      "_count": { "tasks": 14 }
+    }
+  ],
+  "total": 3,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+---
+
+### Get Project
+
+```
+GET /api/v1/projects/:id
+```
+
+Returns a single project with its tasks and task counts by status.
+
+**Response:**
+
+```json
+{
+  "id": "uuid",
+  "name": "Project Name",
+  "description": "...",
+  "isActive": true,
+  "dueAt": null,
+  "createdAt": "2026-01-15T00:00:00.000Z",
+  "updatedAt": "2026-01-15T00:00:00.000Z",
+  "tasks": [
+    { "id": "uuid", "title": "Task title", "status": "in_progress", "priority": "high", "dueAt": null, "createdAt": "..." }
+  ],
+  "taskCounts": {
+    "not_started": 3,
+    "in_progress": 1,
+    "waiting": 0,
+    "completed": 10,
+    "cancelled": 0,
+    "total": 14
+  }
+}
+```
+
+**Errors:**
+
+| Status | Meaning            |
+| ------ | ------------------ |
+| 404    | Project not found  |
+
+---
+
+### Create Project
+
+```
+POST /api/v1/projects
+Content-Type: application/json
+```
+
+**Body:**
+
+| Field         | Type    | Required | Default | Description                |
+| ------------- | ------- | -------- | ------- | -------------------------- |
+| `name`        | string  | Yes      | —       | Project name               |
+| `description` | string  | No       | `null`  | Project description        |
+| `dueAt`       | string  | No       | `null`  | ISO 8601 date string       |
+| `isActive`    | boolean | No       | `true`  | Whether project is active  |
+
+**Response:** `201 Created` with the created Project object.
+
+**Example:**
+
+```bash
+curl -X POST http://localhost:5173/api/v1/projects \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Q1 Launch",
+    "description": "Everything related to the Q1 product launch"
+  }'
+```
+
+---
+
+### Update Project
+
+```
+PATCH /api/v1/projects/:id
+Content-Type: application/json
+```
+
+Send any subset of `name`, `description`, `dueAt`, `isActive`.
+
+When `isActive` is set to `false`, all pending follow-ups on the project's tasks are automatically marked as completed.
+
+**Response:** The updated Project object.
+
+**Errors:**
+
+| Status | Meaning            |
+| ------ | ------------------ |
+| 404    | Project not found  |
+
+---
+
+### Delete Project
+
+```
+DELETE /api/v1/projects/:id
+Content-Type: application/json
+```
+
+**Body (optional):**
+
+| Field              | Type   | Required | Default | Description                                      |
+| ------------------ | ------ | -------- | ------- | ------------------------------------------------ |
+| `moveToProjectId`  | string | No       | `null`  | UUID of project to reassign tasks to (null = unassign) |
+
+**Response:**
+
+```json
+{ "success": true, "tasksReassigned": 5 }
+```
+
+**Errors:**
+
+| Status | Meaning            |
+| ------ | ------------------ |
+| 404    | Project not found  |
+
+---
+
+### Move Task to Project
+
+Use the existing task update endpoint to move a task between projects:
+
+```bash
+curl -X PATCH http://localhost:5173/api/v1/tasks/TASK_UUID \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "projectId": "PROJECT_UUID" }'
+```
+
+Set `projectId` to `null` to unassign a task from its project.
+
+---
+
 ## Reports
 
 ### Summary
