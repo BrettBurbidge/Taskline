@@ -171,6 +171,136 @@ ${channel === 'email' ? '{ "subject": "...", "body": "..." }' : '{ "body": "..."
   }
 }
 
+interface DraftTaskEmailOptions {
+  taskTitle: string;
+  taskDescription?: string;
+  projectName?: string;
+  accountablePersonName: string;
+  executorPersonName?: string;
+  stakeholderNames?: string[];
+  status: string;
+  dueDate?: Date;
+  recentActivitySummary?: string;
+}
+
+/**
+ * Draft a summary email about a task
+ */
+export async function draftTaskEmail(
+  options: DraftTaskEmailOptions
+): Promise<{ subject: string; body: string } | null> {
+  if (!openai) {
+    return null;
+  }
+
+  const {
+    taskTitle,
+    taskDescription,
+    projectName,
+    accountablePersonName,
+    executorPersonName,
+    stakeholderNames = [],
+    status,
+    dueDate,
+    recentActivitySummary,
+  } = options;
+
+  const systemPrompt = `You are an AI assistant that drafts professional, friendly emails summarizing task status.
+
+Draft an email that provides a clear summary of this task's current state.
+
+Task: "${taskTitle}"
+${taskDescription ? `Description: ${taskDescription}` : ''}
+${projectName ? `Project: ${projectName}` : ''}
+Status: ${status.replace(/_/g, ' ')}
+Accountable: ${accountablePersonName}
+${executorPersonName ? `Executor: ${executorPersonName}` : ''}
+${stakeholderNames.length > 0 ? `Stakeholders: ${stakeholderNames.join(', ')}` : ''}
+${dueDate ? `Due: ${dueDate.toISOString().split('T')[0]}` : ''}
+${recentActivitySummary ? `\nRecent Activity:\n${recentActivitySummary}` : ''}
+
+The email should be:
+- Professional but friendly
+- Clear and concise
+- Include current status, key details, and any next steps
+- Suitable for sending to a stakeholder or manager
+
+Return JSON with:
+{ "subject": "...", "body": "..." }`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'system', content: systemPrompt }],
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      return null;
+    }
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('Task email draft failed:', error);
+    return null;
+  }
+}
+
+interface RewriteDraftOptions {
+  currentSubject: string;
+  currentBody: string;
+  instruction: string;
+}
+
+/**
+ * Rewrite an email draft based on user instruction
+ */
+export async function rewriteDraft(
+  options: RewriteDraftOptions
+): Promise<{ subject: string; body: string } | null> {
+  if (!openai) {
+    return null;
+  }
+
+  const { currentSubject, currentBody, instruction } = options;
+
+  const systemPrompt = `You are an AI writing assistant. The user has an email draft and wants you to modify it based on their instruction.
+
+Current email:
+Subject: ${currentSubject}
+
+${currentBody}
+
+Apply the user's instruction to improve the draft. Keep the email professional and well-structured.
+
+Return JSON with:
+{ "subject": "...", "body": "..." }`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: instruction },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.8,
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      return null;
+    }
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('Draft rewrite failed:', error);
+    return null;
+  }
+}
+
 /**
  * Check if AI is available
  */

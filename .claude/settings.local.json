@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx svelte-kit sync:*)",
+      "Bash(npx svelte-check:*)",
+      "Bash(grep -l \"follow\" \"/Users/brett/Documents/Code/CheLabs/Taskline/docs\"/*.md)"
+    ]
+  }
+}

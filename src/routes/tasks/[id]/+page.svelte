@@ -40,6 +40,16 @@
   let completeImmediately = $state(false);
   let newFollowUpNote = $state("");
 
+  // Email Draft Modal state
+  let showEmailDraftModal = $state(false);
+  let emailSubject = $state("");
+  let emailBody = $state("");
+  let emailLoading = $state(false);
+  let rewriteInstruction = $state("");
+  let rewriteLoading = $state(false);
+  let postingAsFollowUp = $state(false);
+  let copySuccess = $state(false);
+
   // Update formData when data changes (after save/reload)
   $effect(() => {
     formData = {
@@ -281,6 +291,97 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+
+  async function openEmailDraftModal() {
+    showEmailDraftModal = true;
+    emailLoading = true;
+    emailSubject = "";
+    emailBody = "";
+    rewriteInstruction = "";
+
+    try {
+      const res = await fetch("/api/ai/draft-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId: data.task.id }),
+      });
+      const draft = await res.json();
+      if (draft.error) throw new Error(draft.error);
+      emailSubject = draft.subject;
+      emailBody = draft.body;
+    } catch (err) {
+      console.error("Failed to draft email:", err);
+      emailSubject = `Update: ${data.task.title}`;
+      emailBody = "(AI draft failed - please write your email here)";
+    } finally {
+      emailLoading = false;
+    }
+  }
+
+  async function rewriteEmail() {
+    if (!rewriteInstruction.trim()) return;
+    rewriteLoading = true;
+    try {
+      const res = await fetch("/api/ai/rewrite-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: emailSubject,
+          body: emailBody,
+          instruction: rewriteInstruction.trim(),
+        }),
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+      emailSubject = result.subject;
+      emailBody = result.body;
+      rewriteInstruction = "";
+    } catch (err) {
+      console.error("Rewrite failed:", err);
+    } finally {
+      rewriteLoading = false;
+    }
+  }
+
+  async function copyEmailToClipboard() {
+    const text = `Subject: ${emailSubject}\n\n${emailBody}`;
+    await navigator.clipboard.writeText(text);
+    copySuccess = true;
+    setTimeout(() => (copySuccess = false), 2000);
+  }
+
+  async function postEmailAsFollowUp() {
+    postingAsFollowUp = true;
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const createRes = await fetch("/api/followups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: data.task.id,
+          followUpType: "self_accountability",
+          targetPersonId: null,
+          dueAt: today,
+        }),
+      });
+      const followUp = await createRes.json();
+
+      const notes = `[Email Draft] Subject: ${emailSubject}\n\n${emailBody}`;
+      await fetch(`/api/followups/${followUp.id}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes }),
+      });
+
+      showEmailDraftModal = false;
+      await invalidateAll();
+    } catch (err) {
+      console.error("Failed to post as follow-up:", err);
+      alert("Failed to post email draft as follow-up");
+    } finally {
+      postingAsFollowUp = false;
+    }
+  }
 </script>
 
 <div class="py-8">
@@ -305,6 +406,12 @@
               : 'bg-gray-100 text-gray-700'} rounded-lg hover:bg-purple-700 hover:text-white transition-colors"
           >
             {showTimeline ? "📝 Details" : "📖 Timeline"}
+          </button>
+          <button
+            onclick={openEmailDraftModal}
+            class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors"
+          >
+            Draft Email
           </button>
           {#if !isEditing}
             <button
@@ -481,6 +588,108 @@
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- Email Draft Modal -->
+      {#if showEmailDraftModal}
+        <div
+          class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onclick={(e) => {
+            if (e.target === e.currentTarget) showEmailDraftModal = false;
+          }}
+        >
+          <div
+            class="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
+          >
+            <h2 class="text-xl font-bold text-gray-900 mb-4">
+              Draft Email
+            </h2>
+
+            {#if emailLoading}
+              <div class="flex items-center justify-center py-12">
+                <div class="text-gray-500">Generating draft...</div>
+              </div>
+            {:else}
+              <!-- Subject -->
+              <div class="mb-4">
+                <label
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  bind:value={emailSubject}
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+
+              <!-- Body -->
+              <div class="mb-4">
+                <label
+                  class="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Body
+                </label>
+                <textarea
+                  bind:value={emailBody}
+                  rows="10"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y font-mono text-sm"
+                ></textarea>
+              </div>
+
+              <!-- AI Rewrite -->
+              <div class="mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >AI Rewrite</label
+                >
+                <div class="flex gap-2">
+                  <input
+                    type="text"
+                    bind:value={rewriteInstruction}
+                    placeholder="e.g. 'make it more formal' or 'shorten to 2 sentences'"
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    onkeydown={(e) => {
+                      if (e.key === "Enter") rewriteEmail();
+                    }}
+                  />
+                  <button
+                    onclick={rewriteEmail}
+                    disabled={rewriteLoading || !rewriteInstruction.trim()}
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm whitespace-nowrap"
+                  >
+                    {rewriteLoading ? "Rewriting..." : "Rewrite"}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Action buttons -->
+              <div class="flex gap-2 flex-wrap">
+                <button
+                  onclick={copyEmailToClipboard}
+                  class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                >
+                  {copySuccess ? "Copied!" : "Copy to Clipboard"}
+                </button>
+                <button
+                  onclick={postEmailAsFollowUp}
+                  disabled={postingAsFollowUp}
+                  class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors text-sm"
+                >
+                  {postingAsFollowUp
+                    ? "Posting..."
+                    : "Post as Follow-up"}
+                </button>
+                <button
+                  onclick={() => (showEmailDraftModal = false)}
+                  class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm ml-auto"
+                >
+                  Close
+                </button>
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
