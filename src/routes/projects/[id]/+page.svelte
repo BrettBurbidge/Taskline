@@ -2,6 +2,11 @@
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
 	import { formatDateInUserTZ } from '$lib/utils/timezone';
+	import { marked } from 'marked';
+
+	function renderMarkdown(content: string): string {
+		return marked(content, { breaks: true }) as string;
+	}
 
 	let { data }: { data: PageData } = $props();
 
@@ -536,8 +541,8 @@
 						<div class="divide-y divide-gray-200">
 							{#each data.project.contextNotes as note}
 								<div class="p-4">
-									<div class="text-sm text-gray-700 whitespace-pre-wrap">
-										{note.content}
+									<div class="prose prose-sm max-w-none text-gray-700">
+										{@html renderMarkdown(note.content)}
 									</div>
 									<div class="text-xs text-gray-500 mt-2">
 										{formatDateInUserTZ(note.createdAt, 'MMM d, h:mm a')}
