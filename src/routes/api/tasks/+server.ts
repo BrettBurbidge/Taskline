@@ -74,16 +74,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     description,
     dueAt,
     projectId,
-    accountablePersonId,
     executorPersonId,
     stakeholderPersonIds = [],
     boardDate,
     priority,
     timezone,
   } = data;
+  let { accountablePersonId } = data;
 
   // Get timezone for date conversion (fallback to default if not provided)
   const tz = timezone || process.env.DEFAULT_TIMEZONE || "America/Denver";
+
+  // Default accountablePerson to the user's "me" person if not provided
+  if (!accountablePersonId) {
+    const me = await db.person.findFirst({ where: { userId, handle: "me" } });
+    if (!me) throw error(422, "No 'me' person found for this user — run prisma db seed first");
+    accountablePersonId = me.id;
+  }
 
   // Parse dates using timezone utilities for consistency
   let parsedDueAt: Date | null = null;
