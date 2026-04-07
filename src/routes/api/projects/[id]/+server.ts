@@ -2,6 +2,23 @@ import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import type { RequestHandler } from './$types';
 
+// GET /api/projects/[id] - get a single project with context notes
+export const GET: RequestHandler = async ({ params, locals }) => {
+  const userId = locals.user?.id;
+  if (!userId) throw error(401, 'Unauthorized');
+
+  const project = await db.project.findFirst({
+    where: { id: params.id, userId },
+    include: {
+      contextNotes: { orderBy: { createdAt: 'desc' } },
+      _count: { select: { tasks: true } },
+    },
+  });
+
+  if (!project) throw error(404, 'Project not found');
+  return json(project);
+};
+
 // PATCH /api/projects/[id] - update a project
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   // Get authenticated user
