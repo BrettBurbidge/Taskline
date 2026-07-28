@@ -17,6 +17,11 @@
   let selectedStakeholders = $state<string[]>(
     data.task.stakeholders.map((s) => s.personId)
   );
+  // Handles typed in that don't exist yet — created by the update action on save
+  let newStakeholderHandles = $state<string[]>([]);
+  let stakeholderQuery = $state("");
+  let showStakeholderMenu = $state(false);
+  let stakeholderHighlight = $state(0);
   let formData = $state({
     title: data.task.title,
     description: data.task.description || "",
@@ -62,15 +67,113 @@
       executorPersonId: data.task.executorPersonId || "",
     };
     selectedStakeholders = data.task.stakeholders.map((s) => s.personId);
+    newStakeholderHandles = [];
+    stakeholderQuery = "";
   });
 
-  function toggleStakeholder(personId: string) {
-    if (selectedStakeholders.includes(personId)) {
-      selectedStakeholders = selectedStakeholders.filter(
-        (id) => id !== personId
-      );
-    } else {
+  // --- Stakeholder type-ahead -------------------------------------------------
+
+  // Raw text for searching — keeps spaces so display names still match
+  let stakeholderSearch = $derived(
+    stakeholderQuery.trim().toLowerCase().replace(/^@/, "")
+  );
+
+  // Normalize whatever was typed into a valid handle (matches @mention rules)
+  let typedHandle = $derived(
+    stakeholderSearch.replace(/\s+/g, "").replace(/[^a-z0-9_]/g, "")
+  );
+
+  // Existing people not already selected, filtered by the query
+  let stakeholderMatches = $derived(
+    data.people
+      .filter(
+        (p) =>
+          p.id !== data.task.accountablePersonId &&
+          !selectedStakeholders.includes(p.id)
+      )
+      .filter(
+        (p) =>
+          !stakeholderSearch ||
+          (typedHandle !== "" && p.handle.toLowerCase().includes(typedHandle)) ||
+          p.displayName.toLowerCase().includes(stakeholderSearch)
+      )
+      .slice(0, 8)
+  );
+
+  // Only offer creation when the handle is genuinely new
+  let canCreateStakeholder = $derived(
+    typedHandle.length > 0 &&
+      !data.people.some((p) => p.handle.toLowerCase() === typedHandle) &&
+      !newStakeholderHandles.includes(typedHandle)
+  );
+
+  let stakeholderOptionCount = $derived(
+    stakeholderMatches.length + (canCreateStakeholder ? 1 : 0)
+  );
+
+  function selectStakeholder(personId: string) {
+    if (!selectedStakeholders.includes(personId)) {
       selectedStakeholders = [...selectedStakeholders, personId];
+    }
+    resetStakeholderQuery();
+  }
+
+  function createStakeholder() {
+    if (!canCreateStakeholder) return;
+    newStakeholderHandles = [...newStakeholderHandles, typedHandle];
+    resetStakeholderQuery();
+  }
+
+  function removeStakeholder(personId: string) {
+    selectedStakeholders = selectedStakeholders.filter((id) => id !== personId);
+  }
+
+  function removeNewStakeholder(handle: string) {
+    newStakeholderHandles = newStakeholderHandles.filter((h) => h !== handle);
+  }
+
+  function resetStakeholderQuery() {
+    stakeholderQuery = "";
+    stakeholderHighlight = 0;
+    showStakeholderMenu = true;
+  }
+
+  function chooseHighlightedStakeholder() {
+    if (stakeholderHighlight < stakeholderMatches.length) {
+      selectStakeholder(stakeholderMatches[stakeholderHighlight].id);
+    } else if (canCreateStakeholder) {
+      createStakeholder();
+    }
+  }
+
+  function handleStakeholderKeydown(e: KeyboardEvent) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      showStakeholderMenu = true;
+      if (stakeholderOptionCount > 0) {
+        stakeholderHighlight =
+          (stakeholderHighlight + 1) % stakeholderOptionCount;
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (stakeholderOptionCount > 0) {
+        stakeholderHighlight =
+          (stakeholderHighlight - 1 + stakeholderOptionCount) %
+          stakeholderOptionCount;
+      }
+    } else if (e.key === "Enter") {
+      // Never let the type-ahead submit the surrounding edit form
+      e.preventDefault();
+      chooseHighlightedStakeholder();
+    } else if (e.key === "Escape") {
+      showStakeholderMenu = false;
+    } else if (e.key === "Backspace" && stakeholderQuery === "") {
+      // Backspace on an empty input removes the last chip
+      if (newStakeholderHandles.length > 0) {
+        newStakeholderHandles = newStakeholderHandles.slice(0, -1);
+      } else if (selectedStakeholders.length > 0) {
+        selectedStakeholders = selectedStakeholders.slice(0, -1);
+      }
     }
   }
 
@@ -833,25 +936,114 @@
                   <div class="block text-sm font-medium text-gray-700 mb-2">
                     Stakeholders
                   </div>
-                  <div class="flex flex-wrap gap-2">
-                    {#each data.people.filter((p) => p.id !== data.task.accountablePersonId) as person}
-                      <button
-                        type="button"
-                        onclick={() => toggleStakeholder(person.id)}
-                        class="px-3 py-1 rounded-full text-sm border transition-colors {selectedStakeholders.includes(
-                          person.id
-                        )
-                          ? 'bg-blue-100 border-blue-300 text-blue-700'
-                          : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'}"
+                  {#if selectedStakeholders.length > 0 || newStakeholderHandles.length > 0}
+                    <div class="flex flex-wrap gap-2 mb-2">
+                      {#each selectedStakeholders as personId}
+                        {@const person = data.people.find(
+                          (p) => p.id === personId
+                        )}
+                        {#if person}
+                          <span
+                            class="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-sm border bg-blue-100 border-blue-300 text-blue-700"
+                          >
+                            {person.displayName}
+                            <button
+                              type="button"
+                              onclick={() => removeStakeholder(personId)}
+                              aria-label="Remove {person.displayName}"
+                              class="w-4 h-4 flex items-center justify-center rounded-full hover:bg-blue-200 text-blue-500 hover:text-blue-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        {/if}
+                      {/each}
+                      {#each newStakeholderHandles as handle}
+                        <span
+                          title="Will be created when you save"
+                          class="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full text-sm border border-dashed bg-green-50 border-green-400 text-green-800"
+                        >
+                          @{handle}
+                          <span class="text-xs text-green-600">new</span>
+                          <button
+                            type="button"
+                            onclick={() => removeNewStakeholder(handle)}
+                            aria-label="Remove @{handle}"
+                            class="w-4 h-4 flex items-center justify-center rounded-full hover:bg-green-200 text-green-600 hover:text-green-900"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      {/each}
+                    </div>
+                  {/if}
+
+                  <div class="relative">
+                    <input
+                      type="text"
+                      bind:value={stakeholderQuery}
+                      oninput={() => {
+                        stakeholderHighlight = 0;
+                        showStakeholderMenu = true;
+                      }}
+                      onfocus={() => (showStakeholderMenu = true)}
+                      onblur={() => (showStakeholderMenu = false)}
+                      onkeydown={handleStakeholderKeydown}
+                      placeholder="Add a stakeholder — type a name or @handle"
+                      autocomplete="off"
+                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+
+                    {#if showStakeholderMenu && stakeholderOptionCount > 0}
+                      <div
+                        class="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
                       >
-                        {person.displayName}
-                      </button>
-                    {/each}
+                        {#each stakeholderMatches as person, i}
+                          <button
+                            type="button"
+                            onmousedown={(e) => e.preventDefault()}
+                            onclick={() => selectStakeholder(person.id)}
+                            class="w-full flex items-center justify-between gap-3 px-4 py-2 text-left text-sm {i ===
+                            stakeholderHighlight
+                              ? 'bg-blue-50'
+                              : 'hover:bg-gray-50'}"
+                          >
+                            <span class="text-gray-900">
+                              {person.displayName}
+                            </span>
+                            <span class="text-gray-500">@{person.handle}</span>
+                          </button>
+                        {/each}
+
+                        {#if canCreateStakeholder}
+                          <button
+                            type="button"
+                            onmousedown={(e) => e.preventDefault()}
+                            onclick={createStakeholder}
+                            class="w-full px-4 py-2 text-left text-sm border-t border-gray-200 {stakeholderHighlight ===
+                            stakeholderMatches.length
+                              ? 'bg-green-50'
+                              : 'hover:bg-gray-50'}"
+                          >
+                            <span class="text-green-700 font-medium">
+                              + Create new person
+                            </span>
+                            <span class="text-gray-600">"@{typedHandle}"</span>
+                          </button>
+                        {/if}
+                      </div>
+                    {/if}
                   </div>
+
                   <input
                     type="hidden"
                     name="stakeholderPersonIds"
                     value={selectedStakeholders.join(",")}
+                  />
+                  <input
+                    type="hidden"
+                    name="newStakeholderHandles"
+                    value={newStakeholderHandles.join(",")}
                   />
                 </div>
 

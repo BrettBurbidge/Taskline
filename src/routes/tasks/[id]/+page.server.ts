@@ -114,6 +114,7 @@ export const actions: Actions = {
     const priority = formData.get('priority') as string;
     const executorPersonId = formData.get('executorPersonId') as string;
     const stakeholderPersonIdsStr = formData.get('stakeholderPersonIds') as string;
+    const newStakeholderHandlesStr = formData.get('newStakeholderHandles') as string;
     const timezone = formData.get('timezone') as string;
 
     // Convert date string from user's timezone to UTC for storage
@@ -126,6 +127,45 @@ export const actions: Actions = {
     const stakeholderPersonIds = stakeholderPersonIdsStr
       ? stakeholderPersonIdsStr.split(',').filter((id) => id.trim() !== '')
       : [];
+
+    // Resolve any brand-new @handles typed into the stakeholder field.
+    // These are created here (not when typed) so cancelling an edit doesn't
+    // leave orphan people behind.
+    const newStakeholderHandles = newStakeholderHandlesStr
+      ? Array.from(
+          new Set(
+            newStakeholderHandlesStr
+              .split(',')
+              .map((handle) => handle.trim().toLowerCase())
+              .filter((handle) => handle !== '')
+          )
+        )
+      : [];
+
+    for (const handle of newStakeholderHandles) {
+      // Someone may have created this handle since the form was opened
+      const existing = await db.person.findFirst({
+        where: { userId, handle },
+      });
+
+      if (existing) {
+        stakeholderPersonIds.push(existing.id);
+        continue;
+      }
+
+      const person = await db.person.create({
+        data: {
+          userId,
+          handle,
+          displayName: handle.charAt(0).toUpperCase() + handle.slice(1),
+          source: 'mention',
+        },
+      });
+      stakeholderPersonIds.push(person.id);
+    }
+
+    // A person can only be a stakeholder once per task
+    const uniqueStakeholderPersonIds = Array.from(new Set(stakeholderPersonIds));
 
     // Store the old due date to compare
     const oldDueAt = existingTask.dueAt ? new Date(existingTask.dueAt).getTime() : null;
@@ -144,7 +184,7 @@ export const actions: Actions = {
         executorPersonId: executorPersonId || null,
         stakeholders: {
           deleteMany: {}, // Delete all existing stakeholders
-          create: stakeholderPersonIds.map((personId) => ({
+          create: uniqueStakeholderPersonIds.map((personId) => ({
             personId,
           })),
         },

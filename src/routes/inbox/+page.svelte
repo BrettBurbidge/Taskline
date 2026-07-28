@@ -246,6 +246,12 @@
 			}
 
 			// Step 5: Create the task with cleaned title
+			// @mentions and hand-picked stakeholders are both kept — picking one
+			// source over the other silently drops whatever the user did in the
+			// other place.
+			const allStakeholderIds = Array.from(
+				new Set([...stakeholderIds, ...selectedStakeholders])
+			);
 			const cleanedTitle = cleanTaskTitle(title, parsedDateResult.matchedText);
 			const response = await fetch('/api/tasks', {
 				method: 'POST',
@@ -259,7 +265,7 @@
 					projectId: finalProjectId,
 					accountablePersonId: data.currentUser!.id,
 					executorPersonId: finalExecutorId,
-					stakeholderPersonIds: stakeholderIds.length > 0 ? stakeholderIds : selectedStakeholders,
+					stakeholderPersonIds: allStakeholderIds,
 					boardDate: new Date().toISOString().split('T')[0],
 					timezone: getUserTimezone()
 				})
