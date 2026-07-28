@@ -161,6 +161,9 @@
 									Email
 								</th>
 								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Tasks
+								</th>
+								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Usage
 								</th>
 								<th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -205,6 +208,21 @@
 												{:else}
 													<span class="text-gray-400 italic">No email</span>
 												{/if}
+											</div>
+										{/if}
+									</td>
+									<td class="px-6 py-4">
+										{#if person.taskCounts.open === 0 && person.taskCounts.closed === 0}
+											<span class="text-sm text-gray-400 italic">No tasks</span>
+										{:else}
+											<div class="flex items-center gap-2 text-sm whitespace-nowrap">
+												<span class="font-medium text-blue-700">
+													{person.taskCounts.open} Open
+												</span>
+												<span class="text-gray-300">/</span>
+												<span class="text-gray-500">
+													{person.taskCounts.closed} Closed
+												</span>
 											</div>
 										{/if}
 									</td>

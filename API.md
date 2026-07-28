@@ -374,11 +374,15 @@ GET /api/v1/projects
 
 **Query Parameters:**
 
-| Param    | Type   | Default | Description                                     |
-| -------- | ------ | ------- | ----------------------------------------------- |
-| `active` | string | —       | Filter by active status: `true` or `false`      |
-| `limit`  | number | 50      | Page size (max 200)                              |
-| `offset` | number | 0       | Number of records to skip                        |
+| Param      | Type   | Default | Description                                        |
+| ---------- | ------ | ------- | -------------------------------------------------- |
+| `active`   | string | —       | Filter by active status: `true` or `false`         |
+| `personal` | string | —       | Filter by personal flag: `true` or `false`         |
+| `limit`    | number | 50      | Page size (max 200)                                 |
+| `offset`   | number | 0       | Number of records to skip                           |
+
+Use `personal=false` to list work projects only — this is what summaries and
+reports should pull from so personal projects stay out of work output.
 
 **Response:**
 
@@ -390,6 +394,7 @@ GET /api/v1/projects
       "name": "Project Name",
       "description": "Optional description",
       "isActive": true,
+      "isPersonal": false,
       "dueAt": "2026-03-01T00:00:00.000Z",
       "createdAt": "2026-01-15T00:00:00.000Z",
       "updatedAt": "2026-01-15T00:00:00.000Z",
@@ -420,6 +425,7 @@ Returns a single project with its tasks and task counts by status.
   "name": "Project Name",
   "description": "...",
   "isActive": true,
+  "isPersonal": false,
   "dueAt": null,
   "createdAt": "2026-01-15T00:00:00.000Z",
   "updatedAt": "2026-01-15T00:00:00.000Z",
@@ -454,12 +460,13 @@ Content-Type: application/json
 
 **Body:**
 
-| Field         | Type    | Required | Default | Description                |
-| ------------- | ------- | -------- | ------- | -------------------------- |
-| `name`        | string  | Yes      | —       | Project name               |
-| `description` | string  | No       | `null`  | Project description        |
-| `dueAt`       | string  | No       | `null`  | ISO 8601 date string       |
-| `isActive`    | boolean | No       | `true`  | Whether project is active  |
+| Field         | Type    | Required | Default | Description                              |
+| ------------- | ------- | -------- | ------- | ---------------------------------------- |
+| `name`        | string  | Yes      | —       | Project name                             |
+| `description` | string  | No       | `null`  | Project description                      |
+| `dueAt`       | string  | No       | `null`  | ISO 8601 date string                     |
+| `isActive`    | boolean | No       | `true`  | Whether project is active                |
+| `isPersonal`  | boolean | No       | `false` | Personal project — excluded from work summaries |
 
 **Response:** `201 Created` with the created Project object.
 
@@ -484,7 +491,7 @@ PATCH /api/v1/projects/:id
 Content-Type: application/json
 ```
 
-Send any subset of `name`, `description`, `dueAt`, `isActive`.
+Send any subset of `name`, `description`, `dueAt`, `isActive`, `isPersonal`.
 
 When `isActive` is set to `false`, all pending follow-ups on the project's tasks are automatically marked as completed.
 
@@ -583,6 +590,7 @@ Returns each project with task counts per status, plus an "unassigned" bucket fo
       "name": "Project Name",
       "description": "...",
       "isActive": true,
+      "isPersonal": false,
       "createdAt": "2026-01-15T00:00:00.000Z",
       "updatedAt": "2026-01-15T00:00:00.000Z",
       "taskCounts": {
@@ -684,7 +692,8 @@ Full task object returned by CRUD endpoints:
     "id": "uuid",
     "name": "Project Name",
     "description": "...",
-    "isActive": true
+    "isActive": true,
+    "isPersonal": false
   },
   "accountablePerson": {
     "id": "uuid",

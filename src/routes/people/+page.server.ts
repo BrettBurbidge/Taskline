@@ -10,22 +10,60 @@ export const load: PageServerLoad = async ({ locals }) => {
     throw error(401, 'Unauthorized');
   }
 
-  const people = await db.person.findMany({
-    where: { userId }, // Multi-tenant filter
-    orderBy: { handle: 'asc' },
-    include: {
-      _count: {
-        select: {
-          accountableTasks: true,
-          executorTasks: true,
-          stakeholderOn: true,
+  const [people, tasks] = await Promise.all([
+    db.person.findMany({
+      where: { userId }, // Multi-tenant filter
+      orderBy: { handle: 'asc' },
+      include: {
+        _count: {
+          select: {
+            accountableTasks: true,
+            executorTasks: true,
+            stakeholderOn: true,
+          },
         },
       },
-    },
-  });
+    }),
+    // Everything needed to count open/closed tasks per person in one pass.
+    // Cancelled tasks are excluded to match the person detail page.
+    db.task.findMany({
+      where: {
+        userId,
+        status: { notIn: ['cancelled'] },
+      },
+      select: {
+        status: true,
+        accountablePersonId: true,
+        executorPersonId: true,
+        stakeholders: { select: { personId: true } },
+      },
+    }),
+  ]);
+
+  // A person can be accountable, executor and stakeholder on the same task —
+  // dedupe so it only counts once for them.
+  const taskCounts = new Map<string, { open: number; closed: number }>();
+
+  for (const task of tasks) {
+    const personIds = new Set<string>();
+    personIds.add(task.accountablePersonId);
+    if (task.executorPersonId) personIds.add(task.executorPersonId);
+    for (const stakeholder of task.stakeholders) personIds.add(stakeholder.personId);
+
+    const bucket = task.status === 'completed' ? 'closed' : 'open';
+
+    for (const personId of personIds) {
+      const counts = taskCounts.get(personId) ?? { open: 0, closed: 0 };
+      counts[bucket] += 1;
+      taskCounts.set(personId, counts);
+    }
+  }
 
   return {
-    people,
+    people: people.map((person) => ({
+      ...person,
+      taskCounts: taskCounts.get(person.id) ?? { open: 0, closed: 0 },
+    })),
   };
 };
 

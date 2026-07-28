@@ -79,6 +79,7 @@ model Project {
   description String?
   dueAt       DateTime? @map("due_at") // informational only in v1
   isActive    Boolean   @default(true) @map("is_active")
+  isPersonal  Boolean   @default(false) @map("is_personal") // excluded from work summaries/reports
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 

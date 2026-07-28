@@ -59,7 +59,12 @@ This guide will walk you through deploying Taskline to Vercel.
    PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
    SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
    DATABASE_URL=postgresql://postgres.your-project:password@aws-0-us-west-2.pooler.supabase.com:5432/postgres
+   DIRECT_URL=postgresql://postgres:password@db.your-project.supabase.co:5432/postgres
    ```
+
+   `DIRECT_URL` must be a **direct, non-pooled** connection — it is what
+   `prisma migrate deploy` uses during the build. Migrations hang forever
+   through the pgbouncer pooler.
 
    Optional:
    ```
@@ -92,6 +97,7 @@ This guide will walk you through deploying Taskline to Vercel.
    vercel env add PUBLIC_SUPABASE_ANON_KEY
    vercel env add SUPABASE_SERVICE_ROLE_KEY
    vercel env add DATABASE_URL
+   vercel env add DIRECT_URL
    ```
 
 5. **Deploy to production**:
@@ -118,21 +124,42 @@ This guide will walk you through deploying Taskline to Vercel.
    - Go to **Authentication** → **Email Templates**
    - Update the redirect URLs in confirmation emails to use your production domain
 
-## Step 5: Run Database Migrations
+## Step 5: Database Migrations
 
-Your database should already have migrations applied from development. If you need to run migrations on production:
+Migrations run **automatically on every Vercel deploy**. The `buildCommand` in
+`vercel.json` runs `npm run migrate:deploy` (`prisma migrate deploy`) before the
+app is built, so any new migration in `prisma/migrations/` is applied as part of
+the deploy. If a migration fails, the build fails and the deploy is not promoted.
 
-1. **Using Prisma Studio locally** (connected to production):
-   ```bash
-   # Set production DATABASE_URL temporarily
-   DATABASE_URL="your-production-url" npx prisma migrate deploy
-   ```
+### Required: `DIRECT_URL`
 
-2. **Or via Vercel CLI**:
-   ```bash
-   vercel env pull .env.production
-   npx prisma migrate deploy
-   ```
+`prisma migrate deploy` **cannot run through a connection pooler**. If your
+`DATABASE_URL` is the Supabase pooler string (port `6543`, `?pgbouncer=true`),
+migrations will hang until the build times out.
+
+Add a second environment variable in Vercel pointing at the same database on the
+direct port `5432`:
+
+```
+DIRECT_URL=postgresql://postgres:PASSWORD@db.xxxx.supabase.co:5432/postgres
+```
+
+`prisma.config.ts` uses `DIRECT_URL` for migration commands when it is set, and
+falls back to `DATABASE_URL` otherwise. The running app always uses
+`DATABASE_URL` (the pooled connection), which is what you want for serverless.
+
+### Running migrations manually
+
+Still useful for applying a migration ahead of a deploy, or to a local database:
+
+```bash
+# Against production (pull env first)
+vercel env pull .env.production
+npx prisma migrate deploy
+
+# Or point at a database explicitly — must be a DIRECT (non-pooled) URL
+DIRECT_URL="postgresql://...:5432/postgres" npx prisma migrate deploy
+```
 
 ## Step 6: Verify Deployment
 
@@ -206,6 +233,7 @@ Vercel automatically deploys:
 | `PUBLIC_SUPABASE_ANON_KEY` | ✅ Yes | Supabase anonymous/public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ Yes | Supabase service role key (keep secret!) |
 | `DATABASE_URL` | ✅ Yes | PostgreSQL connection string (use pooling) |
+| `DIRECT_URL` | ✅ Yes | Direct, non-pooled connection (port 5432) — used by `prisma migrate deploy` at build time |
 | `OPENAI_API_KEY` | ❌ No | OpenAI API key for AI features |
 | `DEFAULT_TIMEZONE` | ❌ No | Default timezone (default: America/Denver) |
 

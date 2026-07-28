@@ -1,5 +1,5 @@
 {
-  "buildCommand": "vitest run && npm run check && npm run build",
+  "buildCommand": "vitest run && npm run check && npm run migrate:deploy && npm run build",
   "framework": "sveltekit",
   "installCommand": "npm install"
 }

@@ -30,7 +30,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
   const projectId = params.id;
   const body = await request.json();
-  const { isActive, name, description } = body;
+  const { isActive, name, description, isPersonal } = body;
 
   // Check if project exists and belongs to user
   const project = await db.project.findFirst({
@@ -51,6 +51,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
       isActive: isActive !== undefined ? isActive : project.isActive,
       name: name !== undefined ? name : project.name,
       description: description !== undefined ? description : project.description,
+      isPersonal: isPersonal !== undefined ? isPersonal : project.isPersonal,
     },
   });
 

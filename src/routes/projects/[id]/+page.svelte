@@ -19,6 +19,7 @@
 	let isCompleting = $state(false);
 	let editName = $state('');
 	let editDescription = $state('');
+	let editIsPersonal = $state(false);
 	let isSaving = $state(false);
 
 	function getStatusColor(status: string) {
@@ -39,6 +40,7 @@
 	function openEditModal() {
 		editName = data.project.name;
 		editDescription = data.project.description || '';
+		editIsPersonal = data.project.isPersonal;
 		showEditModal = true;
 	}
 
@@ -57,6 +59,7 @@
 				body: JSON.stringify({
 					name: editName.trim(),
 					description: editDescription.trim() || null,
+					isPersonal: editIsPersonal,
 				}),
 			});
 
@@ -142,7 +145,17 @@
 
 			<div class="flex items-start justify-between">
 				<div class="flex-1">
-					<h1 class="text-3xl font-bold text-gray-900">{data.project.name}</h1>
+					<div class="flex items-center gap-3">
+						<h1 class="text-3xl font-bold text-gray-900">{data.project.name}</h1>
+						{#if data.project.isPersonal}
+							<span
+								title="Personal — excluded from work summaries"
+								class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium"
+							>
+								Personal
+							</span>
+						{/if}
+					</div>
 					{#if data.project.description}
 						<p class="text-gray-600 mt-2">{data.project.description}</p>
 					{/if}
@@ -218,6 +231,21 @@
 								class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 							></textarea>
 						</div>
+						<div>
+							<label class="flex items-center gap-3 cursor-pointer">
+								<input
+									type="checkbox"
+									bind:checked={editIsPersonal}
+									class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+								/>
+								<span class="text-sm">
+									<span class="font-medium text-gray-700">Personal project</span>
+									<span class="text-gray-500">
+										— kept out of work task lists and summaries
+									</span>
+								</span>
+							</label>
+						</div>
 					</div>
 
 					<div class="flex gap-3 justify-end mt-6">
@@ -226,6 +254,7 @@
 								showEditModal = false;
 								editName = '';
 								editDescription = '';
+								editIsPersonal = false;
 							}}
 							disabled={isSaving}
 							class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
@@ -567,6 +596,12 @@
 							<span>Status:</span>
 							<span class="font-medium">
 								{data.project.isActive ? 'Active' : 'Inactive'}
+							</span>
+						</div>
+						<div class="flex justify-between">
+							<span>Type:</span>
+							<span class="font-medium">
+								{data.project.isPersonal ? 'Personal' : 'Work'}
 							</span>
 						</div>
 					</div>

@@ -261,7 +261,11 @@ npm run check
 npx prisma studio
 
 # Create a migration after schema changes
+# (needs a DIRECT, non-pooled DATABASE_URL/DIRECT_URL — see .env.example)
 npx prisma migrate dev --name <migration-name>
+
+# Apply pending migrations without creating one (prod / CI — also runs on deploy)
+npx prisma migrate deploy
 
 # Generate Prisma Client after schema changes
 npx prisma generate

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
 	import { parseMentions, parseProjects, cleanTaskTitle } from '$lib/utils/mentions';
 	import { parseDate, formatParsedDate, formatParsedDateForInput } from '$lib/utils/dateParser';
@@ -16,6 +16,8 @@
 	let showDetails = $state(false);
 	let isSubmitting = $state(false);
 	let errorMessage = $state('');
+	let successMessage = $state('');
+	let successTimeout: ReturnType<typeof setTimeout> | null = null;
 	let aiEnabled = $state(false);
 	let checkingAI = $state(true);
 	let aiSuggestion = $state<any>(null);
@@ -40,6 +42,15 @@
 			checkAIStatus();
 		}
 	});
+
+	function showSuccess(message: string) {
+		successMessage = message;
+		if (successTimeout) clearTimeout(successTimeout);
+		successTimeout = setTimeout(() => {
+			successMessage = '';
+			successTimeout = null;
+		}, 4000);
+	}
 
 	async function checkAIStatus() {
 		try {
@@ -267,8 +278,9 @@
 		selectedStakeholders = [];
 		showDetails = false;
 
-		// Redirect to board
-		goto('/board');
+		// Stay on the inbox so another task can be captured right away
+		showSuccess('Task added to your inbox');
+		await invalidateAll();
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Failed to create task';
 		} finally {
@@ -641,7 +653,8 @@
 				});
 			}
 
-		// Reset form and redirect
+		// Reset form
+		const createdCount = tasks.length;
 		title = '';
 		description = '';
 		dueAt = '';
@@ -651,8 +664,11 @@
 		showDetails = false;
 		transcribedTasks = [];
 
-		// Redirect to board
-		goto('/board');
+		// Stay on the inbox so another task can be captured right away
+		showSuccess(
+			createdCount === 1 ? 'Task added to your inbox' : `${createdCount} tasks added to your inbox`
+		);
+		await invalidateAll();
 		} catch (err) {
 			errorMessage = err instanceof Error ? err.message : 'Failed to create tasks from audio';
 		} finally {
@@ -672,6 +688,12 @@
 			{#if errorMessage}
 				<div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
 					{errorMessage}
+				</div>
+			{/if}
+
+			{#if successMessage}
+				<div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
+					{successMessage}
 				</div>
 			{/if}
 

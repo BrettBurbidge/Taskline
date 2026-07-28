@@ -58,6 +58,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	if (body.description !== undefined) data.description = body.description;
 	if (body.dueAt !== undefined) data.dueAt = body.dueAt ? new Date(body.dueAt) : null;
 	if (body.isActive !== undefined) data.isActive = body.isActive;
+	if (body.isPersonal !== undefined) data.isPersonal = body.isPersonal;
 
 	const updated = await db.project.update({
 		where: { id: params.id },

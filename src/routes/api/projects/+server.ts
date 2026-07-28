@@ -45,6 +45,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       description: data.description || null,
       dueAt: data.dueAt ? new Date(data.dueAt) : null,
       isActive: true,
+      isPersonal: data.isPersonal === true,
     },
   });
 

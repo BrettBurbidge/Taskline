@@ -8,12 +8,17 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	if (!userId) throw error(401, "Unauthorized");
 
 	const active = url.searchParams.get("active");
+	const personal = url.searchParams.get("personal");
 	const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10) || 50, 200);
 	const offset = parseInt(url.searchParams.get("offset") ?? "0", 10) || 0;
 
 	const where: Record<string, unknown> = { userId };
 	if (active === "true") where.isActive = true;
 	else if (active === "false") where.isActive = false;
+
+	// personal=false returns work projects only — what summaries should pull from
+	if (personal === "true") where.isPersonal = true;
+	else if (personal === "false") where.isPersonal = false;
 
 	const [projects, total] = await Promise.all([
 		db.project.findMany({
@@ -51,6 +56,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			description: body.description || null,
 			dueAt: body.dueAt ? new Date(body.dueAt) : null,
 			isActive: body.isActive !== undefined ? body.isActive : true,
+			isPersonal: body.isPersonal === true,
 		},
 		include: {
 			_count: {

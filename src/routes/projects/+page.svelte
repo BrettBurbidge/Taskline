@@ -7,6 +7,7 @@
 	let showCreateProject = $state(false);
 	let newProjectName = $state('');
 	let newProjectDescription = $state('');
+	let newProjectIsPersonal = $state(false);
 	let isCreating = $state(false);
 
 	async function createProject() {
@@ -19,13 +20,15 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					name: newProjectName.trim(),
-					description: newProjectDescription.trim() || null
+					description: newProjectDescription.trim() || null,
+					isPersonal: newProjectIsPersonal
 				})
 			});
 
 			// Reset form
 			newProjectName = '';
 			newProjectDescription = '';
+			newProjectIsPersonal = false;
 			showCreateProject = false;
 
 			// Reload page data
@@ -83,6 +86,21 @@
 							class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 						></textarea>
 					</div>
+					<div>
+						<label class="flex items-center gap-3 cursor-pointer">
+							<input
+								type="checkbox"
+								bind:checked={newProjectIsPersonal}
+								class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+							/>
+							<span class="text-sm">
+								<span class="font-medium text-gray-700">Personal project</span>
+								<span class="text-gray-500">
+									— kept out of work task lists and summaries
+								</span>
+							</span>
+						</label>
+					</div>
 					<div class="flex justify-end gap-3">
 						<button
 							onclick={() => (showCreateProject = false)}
@@ -123,9 +141,19 @@
 						class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-gray-300 transition-all p-6 block"
 					>
 						<div class="mb-4">
-							<h3 class="text-lg font-semibold text-gray-900 mb-1">
-								{project.name}
-							</h3>
+							<div class="flex items-start justify-between gap-2 mb-1">
+								<h3 class="text-lg font-semibold text-gray-900">
+									{project.name}
+								</h3>
+								{#if project.isPersonal}
+									<span
+										title="Personal — excluded from work summaries"
+										class="shrink-0 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium"
+									>
+										Personal
+									</span>
+								{/if}
+							</div>
 							{#if project.description}
 								<p class="text-sm text-gray-600 line-clamp-2">
 									{project.description}

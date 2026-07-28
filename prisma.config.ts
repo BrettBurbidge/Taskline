@@ -10,7 +10,12 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    // env() reads from process.env (set by Docker) or .env file
-    url: env("DATABASE_URL"),
+    // env() reads from process.env (set by Docker) or .env file.
+    //
+    // Migration commands need a DIRECT (non-pooled) connection — Supabase's
+    // pgbouncer pooler on :6543 cannot run them and will hang. Set DIRECT_URL
+    // to the :5432 connection string when using a pooled DATABASE_URL.
+    // The app runtime always uses DATABASE_URL (see src/lib/db.ts).
+    url: process.env.DIRECT_URL ? env("DIRECT_URL") : env("DATABASE_URL"),
   },
 });
