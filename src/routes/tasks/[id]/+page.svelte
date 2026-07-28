@@ -8,6 +8,7 @@
     formatDateTimeInUserTZ,
     getUserTimezone,
   } from "$lib/utils/timezone";
+  import { sizeForMinutes, TASK_SIZE_OPTIONS } from "$lib/services/taskMix";
 
   let { data }: { data: PageData } = $props();
 
@@ -31,7 +32,7 @@
     priority: data.task.priority || "",
     executorPersonId: data.task.executorPersonId || "",
     taskType: data.task.taskType || "",
-    estimatedMinutes: data.task.estimatedMinutes != null ? String(data.task.estimatedMinutes) : "",
+    estimatedSize: sizeForMinutes(data.task.estimatedMinutes) || "",
   });
 
   let newNote = $state("");
@@ -68,7 +69,7 @@
       priority: data.task.priority || "",
       executorPersonId: data.task.executorPersonId || "",
       taskType: data.task.taskType || "",
-      estimatedMinutes: data.task.estimatedMinutes != null ? String(data.task.estimatedMinutes) : "",
+      estimatedSize: sizeForMinutes(data.task.estimatedMinutes) || "",
     };
     selectedStakeholders = data.task.stakeholders.map((s) => s.personId);
     newStakeholderHandles = [];
@@ -982,21 +983,22 @@
 
                   <div>
                     <label
-                      for="estimatedMinutes"
+                      for="estimatedSize"
                       class="block text-sm font-medium text-gray-700 mb-2"
                     >
-                      Estimated minutes
+                      Size
                     </label>
-                    <input
-                      id="estimatedMinutes"
-                      name="estimatedMinutes"
-                      type="number"
-                      min="1"
-                      step="5"
-                      placeholder="e.g. 30"
-                      bind:value={formData.estimatedMinutes}
+                    <select
+                      id="estimatedSize"
+                      name="estimatedSize"
+                      bind:value={formData.estimatedSize}
                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                    >
+                      <option value="">Not set</option>
+                      {#each TASK_SIZE_OPTIONS as option}
+                        <option value={option.value}>{option.label}</option>
+                      {/each}
+                    </select>
                   </div>
                 </div>
 

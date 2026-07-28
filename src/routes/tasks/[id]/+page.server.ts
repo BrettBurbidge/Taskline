@@ -5,7 +5,7 @@ import { dateStringToUTC } from '$lib/utils/timezone';
 import { generateForTask } from '$lib/services/followupEngine';
 import { resolveCompletedAt } from '$lib/services/taskStatus';
 import { applyDueDateChange } from '$lib/services/taskAnalytics';
-import { TASK_TYPES } from '$lib/services/taskMix';
+import { TASK_TYPES, TASK_SIZES, SIZE_MINUTES, sizeForMinutes, type TaskSize } from '$lib/services/taskMix';
 import { recordDueDateChanged, recordStatusChanged } from '$lib/services/taskActivity';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -119,9 +119,18 @@ export const actions: Actions = {
     const executorPersonId = formData.get('executorPersonId') as string;
     const taskTypeRaw = formData.get('taskType') as string;
     const taskType = (TASK_TYPES as readonly string[]).includes(taskTypeRaw) ? taskTypeRaw : null;
-    const parsedEstimate = parseInt(formData.get('estimatedMinutes') as string, 10);
+    // Sizes write canonical minutes, but an unchanged size keeps the existing
+    // (possibly AI-precise) minutes so re-saving the form can't coarsen them.
+    const sizeRaw = formData.get('estimatedSize') as string;
+    const estimatedSize = (TASK_SIZES as readonly string[]).includes(sizeRaw)
+      ? (sizeRaw as TaskSize)
+      : null;
     const estimatedMinutes =
-      Number.isInteger(parsedEstimate) && parsedEstimate > 0 ? parsedEstimate : null;
+      estimatedSize === null
+        ? null
+        : estimatedSize === sizeForMinutes(existingTask.estimatedMinutes)
+          ? existingTask.estimatedMinutes
+          : SIZE_MINUTES[estimatedSize];
     const stakeholderPersonIdsStr = formData.get('stakeholderPersonIds') as string;
     const newStakeholderHandlesStr = formData.get('newStakeholderHandles') as string;
     const timezone = formData.get('timezone') as string;

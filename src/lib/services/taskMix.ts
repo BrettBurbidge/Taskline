@@ -281,6 +281,45 @@ export function summarizeTaskMix(
   };
 }
 
+// ---- T-shirt sizing ----
+// The UI estimates in sizes; estimatedMinutes stays the stored source of truth
+// so reporting keeps its precision (AI capture still writes exact minutes).
+
+export const TASK_SIZES = ['xs', 's', 'm', 'l', 'xl'] as const;
+export type TaskSize = (typeof TASK_SIZES)[number];
+
+/** Canonical minutes written when a size is picked by hand. */
+export const SIZE_MINUTES: Record<TaskSize, number> = {
+  xs: 15, // ~15 min
+  s: 45, // 30–60 min
+  m: 120, // 1.5–2 hrs
+  l: 240, // half day (~3–5 hrs)
+  xl: 480, // a full day or more
+};
+
+/** Dropdown labels, in size order. */
+export const TASK_SIZE_OPTIONS: Array<{ value: TaskSize; label: string }> = [
+  { value: 'xs', label: 'XS · ~15 min' },
+  { value: 's', label: 'S · 30–60 min' },
+  { value: 'm', label: 'M · 1.5–2 hrs' },
+  { value: 'l', label: 'L · half day' },
+  { value: 'xl', label: 'XL · full day+' },
+];
+
+/**
+ * Map stored minutes onto the nearest size, so precise estimates display as a
+ * size without being rewritten. Boundaries sit midway between canonical
+ * values; ties size up (180m = 3 hrs is an L, matching "half day").
+ */
+export function sizeForMinutes(minutes: number | null): TaskSize | null {
+  if (minutes === null || minutes <= 0) return null;
+  if (minutes < 30) return 'xs';
+  if (minutes < 83) return 's';
+  if (minutes < 180) return 'm';
+  if (minutes < 360) return 'l';
+  return 'xl';
+}
+
 /**
  * Phrase minutes for display.
  *

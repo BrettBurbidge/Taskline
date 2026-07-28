@@ -5,6 +5,9 @@ import {
   formatMinutes,
   DEFAULT_ESTIMATED_MINUTES,
   TASK_TYPES,
+  TASK_SIZES,
+  SIZE_MINUTES,
+  sizeForMinutes,
   type TaskMixTask,
 } from "./taskMix";
 
@@ -330,5 +333,39 @@ describe("formatMinutes", () => {
 
   it("formats zero as 0m", () => {
     expect(formatMinutes(0)).toBe("0m");
+  });
+});
+
+describe("sizeForMinutes", () => {
+  it("returns null for null or non-positive minutes", () => {
+    expect(sizeForMinutes(null)).toBeNull();
+    expect(sizeForMinutes(0)).toBeNull();
+    expect(sizeForMinutes(-5)).toBeNull();
+  });
+
+  it("maps each canonical value to its own size", () => {
+    for (const size of TASK_SIZES) {
+      expect(sizeForMinutes(SIZE_MINUTES[size])).toBe(size);
+    }
+  });
+
+  it("splits at the midpoints between canonical values", () => {
+    expect(sizeForMinutes(29)).toBe("xs");
+    expect(sizeForMinutes(30)).toBe("s");
+    expect(sizeForMinutes(82)).toBe("s");
+    expect(sizeForMinutes(83)).toBe("m");
+    expect(sizeForMinutes(179)).toBe("m");
+    expect(sizeForMinutes(180)).toBe("l"); // 3 hrs is a half-day task
+    expect(sizeForMinutes(359)).toBe("l");
+    expect(sizeForMinutes(360)).toBe("xl");
+  });
+
+  it("buckets typical AI estimates sensibly", () => {
+    expect(sizeForMinutes(5)).toBe("xs");
+    expect(sizeForMinutes(20)).toBe("xs");
+    expect(sizeForMinutes(60)).toBe("s");
+    expect(sizeForMinutes(90)).toBe("m");
+    expect(sizeForMinutes(240)).toBe("l");
+    expect(sizeForMinutes(960)).toBe("xl");
   });
 });
