@@ -1,6 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import { generateForTask } from '$lib/services/followupEngine';
+import { resolveCompletedAt } from '$lib/services/taskStatus';
+import { applyDueDateChange, stripManagedAnalyticsFields } from '$lib/services/taskAnalytics';
+import { recordDueDateChanged, recordStatusChanged } from '$lib/services/taskActivity';
 import type { RequestHandler } from './$types';
 
 // GET /api/tasks/:id - fetch single task
@@ -62,23 +65,39 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
       id: params.id,
       userId,
     },
-    select: { id: true, dueAt: true },
+    select: {
+      id: true,
+      dueAt: true,
+      completedAt: true,
+      status: true,
+      originalDueAt: true,
+      dueAtChangeCount: true,
+    },
   });
 
   if (!existingTask) {
     throw error(404, 'Task not found or access denied');
   }
 
+  const nextDueAt = data.dueAt !== undefined ? (data.dueAt ? new Date(data.dueAt) : null) : undefined;
+
   const task = await db.task.update({
-    where: { 
+    where: {
       id: params.id,
       userId, // Verify ownership
     },
     data: {
-      ...data,
+      ...stripManagedAnalyticsFields(data),
       dueAt: data.dueAt ? new Date(data.dueAt) : undefined,
       boardDate: data.boardDate ? new Date(data.boardDate) : undefined,
-      completedAt: data.completedAt ? new Date(data.completedAt) : undefined,
+      // Keep completedAt in step with status — see src/lib/services/taskStatus.ts
+      completedAt: resolveCompletedAt({
+        nextStatus: data.status,
+        currentCompletedAt: existingTask.completedAt,
+        explicitCompletedAt: data.completedAt,
+      }),
+      // Track the reschedule — see src/lib/services/taskAnalytics.ts
+      ...(nextDueAt !== undefined ? applyDueDateChange(existingTask, nextDueAt) : {}),
     },
     include: {
       project: true,
@@ -92,10 +111,17 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
     },
   });
 
+  if (data.status !== undefined) {
+    await recordStatusChanged(task.id, existingTask.status, data.status);
+  }
+  if (nextDueAt !== undefined) {
+    await recordDueDateChanged(task.id, existingTask.dueAt, nextDueAt, 'api', data.timezone);
+  }
+
   // If due date changed, regenerate follow-ups
   const newDueAt = data.dueAt ? new Date(data.dueAt).getTime() : null;
   const oldDueAt = existingTask.dueAt ? new Date(existingTask.dueAt).getTime() : null;
-  
+
   if (newDueAt !== oldDueAt) {
     // Regenerate follow-ups based on the new due date
     try {

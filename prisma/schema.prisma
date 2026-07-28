@@ -101,13 +101,28 @@ model Task {
   title       String
   description String?
   status      String    @default("not_started") // not_started, in_progress, waiting, completed, cancelled
-  priority    String? // optional
+  priority    String? // low, medium, high — AI-suggested at capture time
   dueAt       DateTime? @map("due_at")
   boardDate   DateTime? @map("board_date") @db.Date
   sortOrder   Int?      @map("sort_order")
   completedAt DateTime? @map("completed_at")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // --- Analytics capture (all populated automatically, never by hand) ---
+  // The first due date ever set, never overwritten — lets lateness be measured
+  // against the original commitment rather than the latest reschedule.
+  // NULL on rows that predate this column: "history unknown", which is
+  // deliberately distinct from dueAtChangeCount = 0 ("never moved").
+  originalDueAt    DateTime? @map("original_due_at")
+  dueAtChangeCount Int       @default(0) @map("due_at_change_count")
+  // First day the task appeared on the daily board, and how many distinct days
+  // it has occupied it — an aging / real-effort proxy.
+  firstBoardDate   DateTime? @map("first_board_date") @db.Date
+  boardDayCount    Int       @default(1) @map("board_day_count")
+  // AI-classified at capture time; null whenever AI is unavailable.
+  taskType         String?   @map("task_type") // admin, deep_work, followup, meeting, errand, other
+  estimatedMinutes Int?      @map("estimated_minutes")
 
   // Foreign Keys
   projectId           String? @map("project_id")

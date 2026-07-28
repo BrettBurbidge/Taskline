@@ -667,6 +667,68 @@ Returns tasks completed within the lookback window, grouped by period.
 
 ---
 
+### Punctuality
+
+```
+GET /api/v1/reports/punctuality
+```
+
+How far from their due date tasks actually get closed. Positive numbers are days
+late, negative are days early, `0` is on time.
+
+**Query Parameters:**
+
+| Param      | Type   | Default            | Description                                        |
+| ---------- | ------ | ------------------ | -------------------------------------------------- |
+| `days`     | number | —                  | Limit to tasks completed in the last N days (all time if omitted) |
+| `timezone` | string | `DEFAULT_TIMEZONE` | IANA zone used to compare calendar days            |
+
+Only tasks with `status: "completed"` are considered. A task is **scored** when it
+has both a `dueAt` and a `completedAt`; completed tasks missing either are counted
+as `unscoreable` and excluded from the averages, so they can never skew the result.
+
+Comparison is by whole calendar day in the given timezone — a task due Monday and
+finished Monday at 11pm is on time, not 0.96 days late.
+
+**Response:**
+
+```json
+{
+  "scored": 46,
+  "unscoreable": 7,
+  "early": 1,
+  "onTime": 4,
+  "late": 41,
+  "medianDays": 13,
+  "meanDays": 17.7,
+  "bestDays": -7,
+  "worstDays": 122,
+  "windowDays": null,
+  "timezone": "America/Denver"
+}
+```
+
+`medianDays` is the number to trust — a single long-abandoned task can pull
+`meanDays` well above the typical case.
+
+When nothing can be scored, the counts are `0` and `medianDays` / `meanDays` /
+`bestDays` / `worstDays` are `null`.
+
+**Errors:**
+
+| Status | Meaning                          |
+| ------ | -------------------------------- |
+| 400    | `days` is not a positive integer |
+
+**Example:**
+
+```bash
+curl "http://localhost:5173/api/v1/reports/punctuality?days=90" \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+---
+
 ## Task Object
 
 Full task object returned by CRUD endpoints:
@@ -685,6 +747,12 @@ Full task object returned by CRUD endpoints:
   "completedAt": null,
   "createdAt": "2026-02-16T00:00:00.000Z",
   "updatedAt": "2026-02-16T00:00:00.000Z",
+  "originalDueAt": "2026-02-10T07:00:00.000Z",
+  "dueAtChangeCount": 2,
+  "firstBoardDate": "2026-02-10T00:00:00.000Z",
+  "boardDayCount": 5,
+  "taskType": "admin",
+  "estimatedMinutes": 30,
   "projectId": "uuid",
   "accountablePersonId": "uuid",
   "executorPersonId": "uuid",
@@ -712,6 +780,47 @@ Full task object returned by CRUD endpoints:
   "contextNotes": []
 }
 ```
+
+### Analytics fields
+
+These are populated automatically — there is no UI for entering them, and they
+should not be written by API clients.
+
+| Field | Written by | Meaning |
+| ----- | ---------- | ------- |
+| `originalDueAt` | task creation, or the first observed due-date write | The first due date ever set. Never overwritten, so lateness can be measured against the original commitment rather than the latest reschedule. `null` on tasks created before this was tracked — which is deliberately distinct from `dueAtChangeCount: 0`. |
+| `dueAtChangeCount` | every path that moves `dueAt` | How many times the due date was pushed. Same-day rewrites don't count. |
+| `firstBoardDate` | task creation / first board placement | First day the task appeared on the daily board. |
+| `boardDayCount` | board moves and rollover | Distinct board days occupied — an aging / real-effort proxy. |
+| `taskType` | AI at capture time | One of `admin`, `deep_work`, `followup`, `meeting`, `errand`, `other`. `null` when AI is unavailable. |
+| `estimatedMinutes` | AI at capture time | Suggested effort in minutes. `null` when AI is unavailable. |
+
+`originalDueAt`, `dueAtChangeCount`, `firstBoardDate` and `boardDayCount` are
+**stripped from PATCH bodies** — the server owns them. Sending them is a no-op
+rather than an error.
+
+> **`originalDueAt` and `dueAtChangeCount` can disagree, by design.**
+> `scripts/backfill-original-due-at.ts` recovers original due dates for tasks
+> that predate this tracking, by reading clamped follow-up dates. It can prove
+> *that* such a task was rescheduled but not *how many times*, so it deliberately
+> leaves the counter alone. A backfilled task may therefore show
+> `originalDueAt ≠ dueAt` with `dueAtChangeCount: 0`. That is consistent with what
+> the two fields actually mean — *"the original commitment"* versus *"reschedules
+> observed since tracking began"*. Compute slip from the dates, not the counter.
+
+### Task activity types
+
+Every task write is recorded in `task_activity`, readable via the task detail
+endpoint:
+
+| `activityType` | Recorded when |
+| -------------- | ------------- |
+| `created` | A task is created |
+| `status_changed` | Status moves between non-completed states |
+| `completed` | Status becomes `completed` |
+| `due_date_changed` | The due date moves. `metadata.source` is one of `rollover`, `board_move`, `edit_form`, `api` — rollover pushes are invisible to the user, so being able to separate them from deliberate reschedules matters |
+| `board_date_changed` | The task moves to another board day |
+| `followup_completed` | A follow-up on the task is completed
 
 **Notes:**
 - `followUps` and `contextNotes` are only included on `GET /api/v1/tasks/:id` (single task).

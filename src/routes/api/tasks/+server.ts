@@ -2,6 +2,7 @@ import { json, error } from "@sveltejs/kit";
 import { db } from "$lib/db";
 import { dateStringToUTC } from "$lib/utils/timezone";
 import { generateForTask } from "$lib/services/followupEngine";
+import { recordCreated } from "$lib/services/taskActivity";
 import type { RequestHandler } from "./$types";
 
 // GET /api/tasks - fetch tasks with optional filters
@@ -78,6 +79,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     stakeholderPersonIds = [],
     boardDate,
     priority,
+    taskType,
+    estimatedMinutes,
     timezone,
   } = data;
   let { accountablePersonId } = data;
@@ -130,7 +133,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       executorPersonId: executorPersonId || accountablePersonId,
       boardDate: parsedBoardDate,
       priority: priority || null,
+      taskType: taskType || null,
+      estimatedMinutes: typeof estimatedMinutes === "number" ? estimatedMinutes : null,
       status: "not_started",
+      // Analytics baselines — the first commitment, never overwritten later
+      originalDueAt: parsedDueAt,
+      firstBoardDate: parsedBoardDate,
       stakeholders: {
         create: stakeholderPersonIds.map((personId: string) => ({
           personId,
@@ -148,6 +156,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       },
     },
   });
+
+  await recordCreated(task.id, task.title);
 
   // Auto-generate follow-ups for the newly created task
   try {

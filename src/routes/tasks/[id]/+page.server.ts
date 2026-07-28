@@ -3,6 +3,9 @@ import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { dateStringToUTC } from '$lib/utils/timezone';
 import { generateForTask } from '$lib/services/followupEngine';
+import { resolveCompletedAt } from '$lib/services/taskStatus';
+import { applyDueDateChange } from '$lib/services/taskAnalytics';
+import { recordDueDateChanged, recordStatusChanged } from '$lib/services/taskActivity';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   // Get authenticated user
@@ -171,6 +174,15 @@ export const actions: Actions = {
     const oldDueAt = existingTask.dueAt ? new Date(existingTask.dueAt).getTime() : null;
     const newDueAt = dueAt ? new Date(dueAt).getTime() : null;
 
+    // Keep completedAt in step with status — see src/lib/services/taskStatus.ts
+    const completedAt = resolveCompletedAt({
+      nextStatus: status,
+      currentCompletedAt: existingTask.completedAt,
+    });
+
+    // Track the reschedule — see src/lib/services/taskAnalytics.ts
+    const dueDateAnalytics = applyDueDateChange(existingTask, dueAt, timezone);
+
     // Update task and stakeholders
     await db.task.update({
       where: { id: params.id },
@@ -178,10 +190,12 @@ export const actions: Actions = {
         title,
         description: description || null,
         status,
+        completedAt,
         dueAt,
         projectId: projectId || null,
         priority: priority || null,
         executorPersonId: executorPersonId || null,
+        ...dueDateAnalytics,
         stakeholders: {
           deleteMany: {}, // Delete all existing stakeholders
           create: uniqueStakeholderPersonIds.map((personId) => ({
@@ -190,6 +204,11 @@ export const actions: Actions = {
         },
       },
     });
+
+    await recordStatusChanged(params.id, existingTask.status, status);
+    if (newDueAt !== oldDueAt) {
+      await recordDueDateChanged(params.id, existingTask.dueAt, dueAt, 'edit_form', timezone);
+    }
 
     // If due date changed, regenerate follow-ups
     if (newDueAt !== oldDueAt) {

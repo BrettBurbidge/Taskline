@@ -13,6 +13,10 @@
 	let projectId = $state('');
 	let executorPersonId = $state(data.currentUser?.id || '');
 	let selectedStakeholders = $state<string[]>([]);
+	// AI-populated analytics dimensions — no form controls, never typed by hand
+	let priority = $state<string | null>(null);
+	let taskType = $state<string | null>(null);
+	let estimatedMinutes = $state<number | null>(null);
 	let showDetails = $state(false);
 	let isSubmitting = $state(false);
 	let errorMessage = $state('');
@@ -266,6 +270,9 @@
 					accountablePersonId: data.currentUser!.id,
 					executorPersonId: finalExecutorId,
 					stakeholderPersonIds: allStakeholderIds,
+					priority,
+					taskType,
+					estimatedMinutes,
 					boardDate: new Date().toISOString().split('T')[0],
 					timezone: getUserTimezone()
 				})
@@ -282,6 +289,9 @@
 		projectId = '';
 		executorPersonId = data.currentUser?.id || '';
 		selectedStakeholders = [];
+		priority = null;
+		taskType = null;
+		estimatedMinutes = null;
 		showDetails = false;
 
 		// Stay on the inbox so another task can be captured right away
@@ -353,6 +363,18 @@
 			}
 			if (suggestion.suggestedProjectId) {
 				projectId = suggestion.suggestedProjectId;
+			}
+			// Analytics dimensions — captured silently, no form controls.
+			// These were previously dropped on the floor, which is why every
+			// task in the database has priority = null.
+			if (suggestion.priority) {
+				priority = suggestion.priority;
+			}
+			if (suggestion.taskType) {
+				taskType = suggestion.taskType;
+			}
+			if (typeof suggestion.estimatedMinutes === 'number') {
+				estimatedMinutes = suggestion.estimatedMinutes;
 			}
 			if (suggestion.suggestedStakeholderIds?.length > 0) {
 				// Find person IDs from handles
@@ -667,6 +689,9 @@
 		projectId = '';
 		executorPersonId = data.currentUser?.id || '';
 		selectedStakeholders = [];
+		priority = null;
+		taskType = null;
+		estimatedMinutes = null;
 		showDetails = false;
 		transcribedTasks = [];
 

@@ -3,6 +3,8 @@ import { db } from "$lib/db";
 import { startOfDay, addDays } from "date-fns";
 import { dateStringToUTC, getStartOfDayUTC } from "$lib/utils/timezone";
 import { generateForTask } from "$lib/services/followupEngine";
+import { applyDueDateChange, applyBoardDateChange } from "$lib/services/taskAnalytics";
+import { recordDueDateChanged, recordBoardDateChanged } from "$lib/services/taskActivity";
 import type { RequestHandler } from "./$types";
 
 // POST /api/board/rollover - move incomplete tasks to next day (smart rollover)
@@ -33,6 +35,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     select: {
       id: true,
       dueAt: true,
+      // Needed to keep the analytics counters accurate
+      boardDate: true,
+      originalDueAt: true,
+      dueAtChangeCount: true,
+      firstBoardDate: true,
+      boardDayCount: true,
     },
   });
 
@@ -59,10 +67,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       }
     }
 
+    // Rollover pushes due dates invisibly — record it so lateness can later be
+    // measured against the original commitment, and so silent pushes can be told
+    // apart from deliberate reschedules.
+    Object.assign(
+      updates,
+      applyBoardDateChange(task, to, tz),
+      dueDateChanged ? applyDueDateChange(task, to, tz) : {}
+    );
+
     await db.task.update({
       where: { id: task.id },
       data: updates,
     });
+
+    await recordBoardDateChanged(task.id, task.boardDate, to, "rollover", tz);
+    if (dueDateChanged) {
+      await recordDueDateChanged(task.id, task.dueAt, to, "rollover", tz);
+    }
 
     // If due date changed, regenerate follow-ups
     if (dueDateChanged) {

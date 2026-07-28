@@ -14,6 +14,12 @@ const TaskSuggestionSchema = z.object({
   description: z.string().nullable(),
   dueDate: z.string().nullable(), // ISO date string
   priority: z.enum(['low', 'medium', 'high']).nullable(),
+  // Analytics dimensions — classified here so nothing has to be typed by hand
+  taskType: z
+    .enum(['admin', 'deep_work', 'followup', 'meeting', 'errand', 'other'])
+    .nullable()
+    .default(null),
+  estimatedMinutes: z.number().int().positive().nullable().default(null),
   suggestedExecutor: z.string().nullable(),
   suggestedStakeholders: z.array(z.string()).default([]),
   suggestedProject: z.string().nullable(),
@@ -54,6 +60,8 @@ Parse the user's input and extract:
 - Additional description/context (if any)
 - Due date (if mentioned, in YYYY-MM-DD format)
 - Priority (low/medium/high)
+- Task type: one of admin, deep_work, followup, meeting, errand, other
+- Estimated effort in minutes (a realistic working estimate, not elapsed time)
 - Suggested executor (if delegated, use @handle format)
 - Suggested stakeholders (people who should be kept updated, use @handle format)
 - Suggested project (if it matches an existing project)
@@ -65,6 +73,8 @@ Return your response as JSON matching this schema:
   "description": "string | null",
   "dueDate": "YYYY-MM-DD | null",
   "priority": "low | medium | high | null",
+  "taskType": "admin | deep_work | followup | meeting | errand | other | null",
+  "estimatedMinutes": number | null,
   "suggestedExecutor": "@handle | null",
   "suggestedStakeholders": ["@handle"],
   "suggestedProject": "project name | null",

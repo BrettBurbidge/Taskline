@@ -1,6 +1,9 @@
 import { json, error } from "@sveltejs/kit";
 import { db } from "$lib/db";
 import { generateForTask } from "$lib/services/followupEngine";
+import { resolveCompletedAt } from "$lib/services/taskStatus";
+import { applyDueDateChange, stripManagedAnalyticsFields } from "$lib/services/taskAnalytics";
+import { recordDueDateChanged, recordStatusChanged } from "$lib/services/taskActivity";
 import type { RequestHandler } from "./$types";
 
 const TASK_INCLUDE = {
@@ -44,21 +47,45 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
   const existing = await db.task.findFirst({
     where: { id: params.id, userId },
-    select: { id: true, dueAt: true },
+    select: {
+      id: true,
+      dueAt: true,
+      completedAt: true,
+      status: true,
+      originalDueAt: true,
+      dueAtChangeCount: true,
+    },
   });
 
   if (!existing) throw error(404, "Task not found");
 
+  const nextDueAt =
+    data.dueAt !== undefined ? (data.dueAt ? new Date(data.dueAt) : null) : undefined;
+
   const task = await db.task.update({
     where: { id: params.id, userId },
     data: {
-      ...data,
+      ...stripManagedAnalyticsFields(data),
       dueAt: data.dueAt ? new Date(data.dueAt) : undefined,
       boardDate: data.boardDate ? new Date(data.boardDate) : undefined,
-      completedAt: data.completedAt ? new Date(data.completedAt) : undefined,
+      // Keep completedAt in step with status — see src/lib/services/taskStatus.ts
+      completedAt: resolveCompletedAt({
+        nextStatus: data.status,
+        currentCompletedAt: existing.completedAt,
+        explicitCompletedAt: data.completedAt,
+      }),
+      // Track the reschedule — see src/lib/services/taskAnalytics.ts
+      ...(nextDueAt !== undefined ? applyDueDateChange(existing, nextDueAt) : {}),
     },
     include: TASK_INCLUDE,
   });
+
+  if (data.status !== undefined) {
+    await recordStatusChanged(task.id, existing.status, data.status);
+  }
+  if (nextDueAt !== undefined) {
+    await recordDueDateChanged(task.id, existing.dueAt, nextDueAt, "api", data.timezone);
+  }
 
   // Regenerate follow-ups if due date changed
   const newDueAt = data.dueAt ? new Date(data.dueAt).getTime() : null;

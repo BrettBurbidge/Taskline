@@ -1,6 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import { dateStringToUTC } from '$lib/utils/timezone';
+import { applyDueDateChange, applyBoardDateChange } from '$lib/services/taskAnalytics';
+import { recordDueDateChanged, recordBoardDateChanged } from '$lib/services/taskActivity';
 import type { RequestHandler } from './$types';
 
 // POST /api/tasks/:id/move - move task to a different board date
@@ -23,8 +25,26 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     parsedBoardDate = dateStringToUTC(boardDate, tz);
   }
 
+  // Load the counters before mutating so the reschedule can be recorded
+  const existing = await db.task.findFirst({
+    where: { id: params.id, userId },
+    select: {
+      id: true,
+      dueAt: true,
+      boardDate: true,
+      originalDueAt: true,
+      dueAtChangeCount: true,
+      firstBoardDate: true,
+      boardDayCount: true,
+    },
+  });
+
+  if (!existing) {
+    throw error(404, 'Task not found or access denied');
+  }
+
   const task = await db.task.update({
-    where: { 
+    where: {
       id: params.id,
       userId, // Verify ownership
     },
@@ -32,6 +52,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
       boardDate: parsedBoardDate,
       dueAt: parsedBoardDate,
       sortOrder: null, // Reset sort order when moving
+      ...applyBoardDateChange(existing, parsedBoardDate, tz),
+      ...applyDueDateChange(existing, parsedBoardDate, tz),
     },
     include: {
       project: true,
@@ -42,6 +64,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
       },
     },
   });
+
+  await recordBoardDateChanged(task.id, existing.boardDate, parsedBoardDate, 'board_move', tz);
+  await recordDueDateChanged(task.id, existing.dueAt, parsedBoardDate, 'board_move', tz);
 
   return json(task);
 };

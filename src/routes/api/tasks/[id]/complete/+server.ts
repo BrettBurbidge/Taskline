@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
+import { recordCompleted } from '$lib/services/taskActivity';
 import type { RequestHandler } from './$types';
 
 // POST /api/tasks/:id/complete - mark task as complete
@@ -35,6 +36,8 @@ export const POST: RequestHandler = async ({ params, locals }) => {
   if (!task) {
     throw error(404, 'Task not found');
   }
+
+  await recordCompleted(task.id);
 
   // Get all pending follow-ups for this task before marking them complete
   const pendingFollowUps = await db.followUp.findMany({
