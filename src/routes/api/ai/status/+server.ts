@@ -8,7 +8,7 @@ export const GET: RequestHandler = async () => {
     available: isAIAvailable(),
     message: isAIAvailable()
       ? 'AI assistance is available'
-      : 'Set OPENAI_API_KEY to enable AI features',
+      : 'Set ANTHROPIC_API_KEY to enable AI features',
   });
 };
 

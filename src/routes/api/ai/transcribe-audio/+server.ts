@@ -1,5 +1,5 @@
 import { json, error } from '@sveltejs/kit';
-import { transcribeAudioAndExtractTasks, isAIAvailable } from '$lib/services/ai';
+import { transcribeAudioAndExtractTasks, isTranscriptionAvailable } from '$lib/services/ai';
 import { db } from '$lib/db';
 import type { RequestHandler } from './$types';
 
@@ -12,9 +12,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     throw error(401, 'Unauthorized');
   }
 
-  if (!isAIAvailable()) {
+  if (!isTranscriptionAvailable()) {
     return json(
-      { error: 'AI assistance not configured. Set OPENAI_API_KEY environment variable.' },
+      { error: 'Voice capture not configured. Set ANTHROPIC_API_KEY and OPENAI_API_KEY (Whisper).' },
       { status: 503 }
     );
   }

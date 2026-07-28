@@ -17,6 +17,15 @@ COPY . .
 ENV DATABASE_URL="postgresql://placeholder:placeholder@placeholder:5432/placeholder"
 RUN npx prisma generate
 
+# Supabase config is baked into the bundle at build time ($env/static/*),
+# so it must be provided as build args (docker-compose.yml passes them).
+ARG PUBLIC_SUPABASE_URL
+ARG PUBLIC_SUPABASE_ANON_KEY
+ARG SUPABASE_SERVICE_ROLE_KEY
+ENV PUBLIC_SUPABASE_URL=$PUBLIC_SUPABASE_URL \
+    PUBLIC_SUPABASE_ANON_KEY=$PUBLIC_SUPABASE_ANON_KEY \
+    SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY
+
 # Build the app
 RUN npm run build
 

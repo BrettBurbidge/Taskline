@@ -127,6 +127,60 @@ export function applyBoardDateChange(
   return update;
 }
 
+/** The columns rankMostPushed needs — pass query results as-is. */
+export interface PushedTask {
+  id: string;
+  title: string;
+  status: string;
+  dueAt: Date | string | null;
+  originalDueAt: Date | string | null;
+  dueAtChangeCount: number;
+  boardDayCount: number;
+}
+
+export interface PushedTaskRank {
+  id: string;
+  title: string;
+  dueAtChangeCount: number;
+  boardDayCount: number;
+  /** Days the due date has slipped vs the original commitment; null if unknown. */
+  slipDays: number | null;
+}
+
+/**
+ * The open tasks that keep getting pushed down the road, most-pushed first.
+ *
+ * Only open tasks (not completed/cancelled) that have actually been pushed
+ * qualify: a due-date reschedule, or living on more than one board day.
+ * Ordered by reschedule count, then board-day count.
+ */
+export function rankMostPushed(
+  tasks: PushedTask[],
+  opts: { limit?: number; timezone?: string } = {}
+): PushedTaskRank[] {
+  const { limit = 8, timezone } = opts;
+
+  return tasks
+    .filter(
+      (t) =>
+        t.status !== 'completed' &&
+        t.status !== 'cancelled' &&
+        (t.dueAtChangeCount > 0 || t.boardDayCount > 1)
+    )
+    .sort(
+      (a, b) =>
+        b.dueAtChangeCount - a.dueAtChangeCount || b.boardDayCount - a.boardDayCount
+    )
+    .slice(0, limit)
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      dueAtChangeCount: t.dueAtChangeCount,
+      boardDayCount: t.boardDayCount,
+      slipDays: slipVsOriginal(t, timezone),
+    }));
+}
+
 /**
  * How far the due date has slipped from the original commitment, in calendar
  * days. Positive = pushed later. null when there's no recorded original (tasks

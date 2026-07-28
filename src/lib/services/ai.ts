@@ -1,12 +1,25 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import OpenAI from 'openai';
 import { z } from 'zod';
 
-// Initialize OpenAI (optional - will only work if API key is set)
+// Claude handles all text generation (optional - requires ANTHROPIC_API_KEY)
+const anthropic = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    })
+  : null;
+
+// OpenAI is kept ONLY for Whisper speech-to-text — Claude has no audio
+// transcription. Without OPENAI_API_KEY, voice capture is disabled; every
+// other AI feature works on the Anthropic key alone.
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     })
   : null;
+
+const MODEL = 'claude-opus-5';
 
 // Response schema for task suggestions
 const TaskSuggestionSchema = z.object({
@@ -41,8 +54,8 @@ interface SuggestTaskOptions {
  * Use AI to parse free-text input and suggest task fields
  */
 export async function suggestTask(options: SuggestTaskOptions): Promise<TaskSuggestion | null> {
-  if (!openai) {
-    console.warn('OpenAI API key not configured. AI suggestions disabled.');
+  if (!anthropic) {
+    console.warn('Anthropic API key not configured. AI suggestions disabled.');
     return null;
   }
 
@@ -83,23 +96,15 @@ Return your response as JSON matching this schema:
 }`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: inputText },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
+    const response = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: 16000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: inputText }],
+      output_config: { format: zodOutputFormat(TaskSuggestionSchema) },
     });
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
-      return null;
-    }
-
-    const parsed = JSON.parse(content);
-    return TaskSuggestionSchema.parse(parsed);
+    return response.parsed_output ?? null;
   } catch (error) {
     console.error('AI suggestion failed:', error);
     return null;
@@ -117,13 +122,18 @@ interface DraftMessageOptions {
   dueDate?: Date;
 }
 
+const DraftedMessageSchema = z.object({
+  subject: z.string().nullable(),
+  body: z.string(),
+});
+
 /**
  * Draft a message for stakeholder update or executor check-in
  */
 export async function draftMessage(
   options: DraftMessageOptions
 ): Promise<{ subject?: string; body: string } | null> {
-  if (!openai) {
+  if (!anthropic) {
     return null;
   }
 
@@ -162,19 +172,20 @@ Return JSON with:
 ${channel === 'email' ? '{ "subject": "...", "body": "..." }' : '{ "body": "..." }'}`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: systemPrompt }],
-      response_format: { type: 'json_object' },
-      temperature: 0.8,
+    const response = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: 16000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: 'Draft the message now.' }],
+      output_config: { format: zodOutputFormat(DraftedMessageSchema) },
     });
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
+    const drafted = response.parsed_output;
+    if (!drafted) {
       return null;
     }
 
-    return JSON.parse(content);
+    return { ...(drafted.subject ? { subject: drafted.subject } : {}), body: drafted.body };
   } catch (error) {
     console.error('Message draft failed:', error);
     return null;
@@ -193,13 +204,18 @@ interface DraftTaskEmailOptions {
   recentActivitySummary?: string;
 }
 
+const DraftedEmailSchema = z.object({
+  subject: z.string(),
+  body: z.string(),
+});
+
 /**
  * Draft a summary email about a task
  */
 export async function draftTaskEmail(
   options: DraftTaskEmailOptions
 ): Promise<{ subject: string; body: string } | null> {
-  if (!openai) {
+  if (!anthropic) {
     return null;
   }
 
@@ -239,19 +255,15 @@ Return JSON with:
 { "subject": "...", "body": "..." }`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: systemPrompt }],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
+    const response = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: 16000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: 'Draft the email now.' }],
+      output_config: { format: zodOutputFormat(DraftedEmailSchema) },
     });
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
-      return null;
-    }
-
-    return JSON.parse(content);
+    return response.parsed_output ?? null;
   } catch (error) {
     console.error('Task email draft failed:', error);
     return null;
@@ -270,7 +282,7 @@ interface RewriteDraftOptions {
 export async function rewriteDraft(
   options: RewriteDraftOptions
 ): Promise<{ subject: string; body: string } | null> {
-  if (!openai) {
+  if (!anthropic) {
     return null;
   }
 
@@ -289,22 +301,15 @@ Return JSON with:
 { "subject": "...", "body": "..." }`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: instruction },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.8,
+    const response = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: 16000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: instruction }],
+      output_config: { format: zodOutputFormat(DraftedEmailSchema) },
     });
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
-      return null;
-    }
-
-    return JSON.parse(content);
+    return response.parsed_output ?? null;
   } catch (error) {
     console.error('Draft rewrite failed:', error);
     return null;
@@ -315,7 +320,14 @@ Return JSON with:
  * Check if AI is available
  */
 export function isAIAvailable(): boolean {
-  return openai !== null;
+  return anthropic !== null;
+}
+
+/**
+ * Check if voice capture is available — needs Whisper (OpenAI) on top of Claude
+ */
+export function isTranscriptionAvailable(): boolean {
+  return anthropic !== null && openai !== null;
 }
 
 // Schema for extracted tasks from audio
@@ -354,8 +366,10 @@ interface TranscribeAudioOptions {
 export async function transcribeAudioAndExtractTasks(
   options: TranscribeAudioOptions
 ): Promise<AudioTranscriptionResult | null> {
-  if (!openai) {
-    console.warn('OpenAI API key not configured. Audio transcription disabled.');
+  if (!openai || !anthropic) {
+    console.warn(
+      'Audio transcription needs OPENAI_API_KEY (Whisper) and ANTHROPIC_API_KEY (task extraction).'
+    );
     return null;
   }
 
@@ -442,23 +456,18 @@ Return your response as JSON matching this schema:
   ]
 }`;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Transcription: ${transcription}` },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
+    const extraction = await anthropic.messages.parse({
+      model: MODEL,
+      max_tokens: 16000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: `Transcription: ${transcription}` }],
+      output_config: { format: zodOutputFormat(AudioTranscriptionSchema) },
     });
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
+    const result = extraction.parsed_output;
+    if (!result) {
       return null;
     }
-
-    const parsed = JSON.parse(content);
-    const result = AudioTranscriptionSchema.parse(parsed);
     
     // Step 3: Post-process to find additional people mentioned in transcription
     // This catches names that the AI might have missed and tags them appropriately

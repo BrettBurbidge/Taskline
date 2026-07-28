@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from "$app/stores";
+  import { dev } from "$app/environment";
 
   interface User {
     id: string;
@@ -24,7 +25,17 @@
   <div class="max-w-7xl mx-auto px-4">
     <div class="flex items-center justify-between h-16">
       <div class="flex items-center space-x-8">
-        <a href="/" class="text-xl font-bold text-gray-900"> Taskline </a>
+        <a href="/" class="text-xl font-bold text-gray-900 flex items-center gap-2">
+          Taskline
+          {#if dev}
+            <span
+              class="px-1.5 py-0.5 rounded text-xs font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 border border-amber-300"
+              title="Running in local development mode"
+            >
+              Dev
+            </span>
+          {/if}
+        </a>
 
         <div class="flex space-x-1">
           {#each navItems as item}

@@ -1,39 +1,42 @@
+# Local Supabase Development
 
-╭──────────────────────────────────────╮
-│ 🔧 Development Tools                 │
-├─────────┬────────────────────────────┤
-│ Studio  │ http://127.0.0.1:54323     │
-│ Mailpit │ http://127.0.0.1:54324     │
-│ MCP     │ http://127.0.0.1:54321/mcp │
-╰─────────┴────────────────────────────╯
+Taskline runs fully locally against the Supabase CLI stack. The database, auth,
+and mail-capture all live in Docker containers managed by `supabase start`.
 
-╭──────────────────────────────────────────────────────╮
-│ 🌐 APIs                                              │
-├────────────────┬─────────────────────────────────────┤
-│ Project URL    │ http://127.0.0.1:54321              │
-│ REST           │ http://127.0.0.1:54321/rest/v1      │
-│ GraphQL        │ http://127.0.0.1:54321/graphql/v1   │
-│ Edge Functions │ http://127.0.0.1:54321/functions/v1 │
-╰────────────────┴─────────────────────────────────────╯
+> Taskline uses ports **54340–54349** so it can run alongside other local
+> Supabase projects (`app` uses 5432x, `sourcebridge` uses 5433x).
 
-╭───────────────────────────────────────────────────────────────╮
-│ ⛁ Database                                                    │
-├─────┬─────────────────────────────────────────────────────────┤
-│ URL │ postgresql://postgres:postgres@127.0.0.1:54322/postgres │
-╰─────┴─────────────────────────────────────────────────────────╯
+## Daily workflow
 
-╭──────────────────────────────────────────────────────────────╮
-│ 🔑 Authentication Keys                                       │
-├─────────────┬────────────────────────────────────────────────┤
-│ Publishable │ sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH │
-│ Secret      │ sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz      │
-╰─────────────┴────────────────────────────────────────────────╯
+```bash
+supabase start     # from the repo root — boots db/auth/studio/mailpit
+npm run dev        # app on http://localhost:5173
+```
 
-╭───────────────────────────────────────────────────────────────────────────────╮
-│ 📦 Storage (S3)                                                               │
-├────────────┬──────────────────────────────────────────────────────────────────┤
-│ URL        │ http://127.0.0.1:54321/storage/v1/s3                             │
-│ Access Key │ 625729a08b95bf1b7ff351a663f3a23c                                 │
-│ Secret Key │ 850181e4652dd023b7a98c58ae0d2d34bd487ee0cc3254aed6eda37307425907 │
-│ Region     │ local                                                            │
-╰────────────┴──────────────────────────────────────────────────────────────────╯
+`supabase stop` shuts the stack down (data persists in a Docker volume).
+
+## Services
+
+| Service            | URL                                                     |
+| ------------------ | ------------------------------------------------------- |
+| API / Auth         | http://127.0.0.1:54341                                  |
+| Postgres           | postgresql://postgres:postgres@127.0.0.1:54342/postgres |
+| Studio (DB UI)     | http://127.0.0.1:54343                                  |
+| Mailpit (emails)   | http://127.0.0.1:54344                                  |
+
+## Environment
+
+`.env` points at the local stack (see `.env.example` for the shape). The
+anon/service-role keys are the Supabase CLI's **shared local-dev defaults** —
+identical on every machine, not secrets. Cloud/production values are kept in
+`.env.cloud.backup`; swap the files to target the hosted database again.
+
+## Notes
+
+- Prisma migrations: `npx prisma migrate deploy` (direct connection, no pooler).
+- Signups are open locally and email confirmation is disabled
+  (`supabase/config.toml` → `[auth.email] enable_confirmations = false`).
+  Any confirmation/reset emails that do get sent land in Mailpit.
+- First login auto-creates the app's `User` row (`src/hooks.server.ts`).
+- Prod-parity containerized run: `docker compose up --build` — see
+  `docker-compose.yml` for the host-networking requirement.

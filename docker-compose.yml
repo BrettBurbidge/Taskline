@@ -1,43 +1,40 @@
+# Taskline — containerized app running against LOCAL SUPABASE.
+#
+# The database is no longer a bundled Postgres: it's the local Supabase stack.
+# Start it first from the repo root:   supabase start
+#
+# For day-to-day development you don't need Docker at all:
+#   supabase start && npm run dev            → http://localhost:5173
+#
+# This compose file is for a prod-parity run of the built app:
+#   docker compose up --build                → http://localhost:3000
+#
+# NOTE: `network_mode: host` is required so the container can reach Supabase
+# on 127.0.0.1:54341/54342 (and so the browser and server share the same
+# Supabase URL). On Docker Desktop for Mac, enable it under
+# Settings → Resources → Network → "Enable host networking".
+#
+# The Supabase keys below are the CLI's shared local-dev defaults — they are
+# the same for every `supabase start` install and are not secrets.
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: taskline-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: taskline
-      POSTGRES_PASSWORD: taskline_dev_password
-      POSTGRES_DB: taskline_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U taskline -d taskline_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   app:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        PUBLIC_SUPABASE_URL: http://127.0.0.1:54341
+        PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+        SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
     container_name: taskline-app
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    network_mode: host
     environment:
-      DATABASE_URL: postgresql://taskline:taskline_dev_password@postgres:5432/taskline_db
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54342/postgres
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NODE_ENV: production
       ORIGIN: http://localhost:3000
       DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Denver}
       TZ: ${TZ:-America/Denver}
-    depends_on:
-      postgres:
-        condition: service_healthy
     command: sh -c "npx prisma migrate deploy && node build"
-
-volumes:
-  postgres_data:
-

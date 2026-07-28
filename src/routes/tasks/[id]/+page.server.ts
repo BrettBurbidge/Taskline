@@ -5,6 +5,7 @@ import { dateStringToUTC } from '$lib/utils/timezone';
 import { generateForTask } from '$lib/services/followupEngine';
 import { resolveCompletedAt } from '$lib/services/taskStatus';
 import { applyDueDateChange } from '$lib/services/taskAnalytics';
+import { TASK_TYPES } from '$lib/services/taskMix';
 import { recordDueDateChanged, recordStatusChanged } from '$lib/services/taskActivity';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -116,6 +117,11 @@ export const actions: Actions = {
     const projectId = formData.get('projectId') as string;
     const priority = formData.get('priority') as string;
     const executorPersonId = formData.get('executorPersonId') as string;
+    const taskTypeRaw = formData.get('taskType') as string;
+    const taskType = (TASK_TYPES as readonly string[]).includes(taskTypeRaw) ? taskTypeRaw : null;
+    const parsedEstimate = parseInt(formData.get('estimatedMinutes') as string, 10);
+    const estimatedMinutes =
+      Number.isInteger(parsedEstimate) && parsedEstimate > 0 ? parsedEstimate : null;
     const stakeholderPersonIdsStr = formData.get('stakeholderPersonIds') as string;
     const newStakeholderHandlesStr = formData.get('newStakeholderHandles') as string;
     const timezone = formData.get('timezone') as string;
@@ -195,6 +201,8 @@ export const actions: Actions = {
         projectId: projectId || null,
         priority: priority || null,
         executorPersonId: executorPersonId || null,
+        taskType,
+        estimatedMinutes,
         ...dueDateAnalytics,
         stakeholders: {
           deleteMany: {}, // Delete all existing stakeholders

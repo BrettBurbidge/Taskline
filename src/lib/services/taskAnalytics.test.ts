@@ -3,6 +3,8 @@ import {
   applyDueDateChange,
   applyBoardDateChange,
   slipVsOriginal,
+  rankMostPushed,
+  type PushedTask,
 } from "./taskAnalytics";
 
 const TZ = "America/Denver";
@@ -215,5 +217,73 @@ describe("slipVsOriginal", () => {
     expect(
       slipVsOriginal({ originalDueAt: d("2026-06-15T12:00:00Z"), dueAt: null }, TZ)
     ).toBeNull();
+  });
+});
+
+describe("rankMostPushed", () => {
+  function pushed(overrides: Partial<PushedTask> = {}): PushedTask {
+    return {
+      id: "t1",
+      title: "A task",
+      status: "not_started",
+      dueAt: null,
+      originalDueAt: null,
+      dueAtChangeCount: 0,
+      boardDayCount: 1,
+      ...overrides,
+    };
+  }
+
+  it("excludes tasks that were never pushed", () => {
+    expect(rankMostPushed([pushed()])).toEqual([]);
+  });
+
+  it("includes tasks pushed by due date or by living on multiple board days", () => {
+    const ranks = rankMostPushed([
+      pushed({ id: "a", dueAtChangeCount: 1 }),
+      pushed({ id: "b", boardDayCount: 2 }),
+    ]);
+    expect(ranks.map((r) => r.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("excludes completed and cancelled tasks", () => {
+    const ranks = rankMostPushed([
+      pushed({ status: "completed", dueAtChangeCount: 5 }),
+      pushed({ status: "cancelled", dueAtChangeCount: 5 }),
+    ]);
+    expect(ranks).toEqual([]);
+  });
+
+  it("orders by reschedule count, then board days", () => {
+    const ranks = rankMostPushed([
+      pushed({ id: "few", dueAtChangeCount: 1, boardDayCount: 9 }),
+      pushed({ id: "many", dueAtChangeCount: 3, boardDayCount: 2 }),
+      pushed({ id: "tie-more-days", dueAtChangeCount: 3, boardDayCount: 5 }),
+    ]);
+    expect(ranks.map((r) => r.id)).toEqual(["tie-more-days", "many", "few"]);
+  });
+
+  it("respects the limit", () => {
+    const tasks = ["a", "b", "c"].map((id) => pushed({ id, dueAtChangeCount: 1 }));
+    expect(rankMostPushed(tasks, { limit: 2 })).toHaveLength(2);
+  });
+
+  it("passes slip through from slipVsOriginal", () => {
+    const [rank] = rankMostPushed(
+      [
+        pushed({
+          dueAtChangeCount: 2,
+          originalDueAt: d("2026-06-15T12:00:00Z"),
+          dueAt: d("2026-06-22T12:00:00Z"),
+        }),
+      ],
+      { timezone: TZ }
+    );
+    expect(rank.slipDays).toBe(7);
+  });
+
+  it("reports null slip when there is no original commitment", () => {
+    const [rank] = rankMostPushed([pushed({ dueAtChangeCount: 1 })]);
+    expect(rank.slipDays).toBeNull();
   });
 });

@@ -14,7 +14,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   if (!isAIAvailable()) {
     return json(
-      { error: 'AI assistance not configured. Set OPENAI_API_KEY environment variable.' },
+      { error: 'AI assistance not configured. Set ANTHROPIC_API_KEY environment variable.' },
       { status: 503 }
     );
   }
